@@ -603,6 +603,18 @@
             "title": "Title",
             "type": "string"
           },
+          "triggering_assessment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Triggering Assessment Id"
+          },
           "vendor_id": {
             "anyOf": [
               {
@@ -945,6 +957,46 @@
         "title": "ContactOut",
         "type": "object"
       },
+      "DashboardStatsOut": {
+        "description": "Org-scoped headline counts. Work-queue sizes \u2014 never verdicts (R2).",
+        "properties": {
+          "high_risk_invoices": {
+            "title": "High Risk Invoices",
+            "type": "integer"
+          },
+          "needs_review_invoices": {
+            "title": "Needs Review Invoices",
+            "type": "integer"
+          },
+          "open_cases": {
+            "title": "Open Cases",
+            "type": "integer"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "processing_failures": {
+            "title": "Processing Failures",
+            "type": "integer"
+          },
+          "total_invoices": {
+            "title": "Total Invoices",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "organization_id",
+          "total_invoices",
+          "needs_review_invoices",
+          "open_cases",
+          "high_risk_invoices",
+          "processing_failures"
+        ],
+        "title": "DashboardStatsOut",
+        "type": "object"
+      },
       "DocumentKind": {
         "enum": [
           "invoice",
@@ -955,6 +1007,50 @@
         ],
         "title": "DocumentKind",
         "type": "string"
+      },
+      "DocumentLocationOut": {
+        "description": "Where in a source document the evidence lives (R3 provenance).",
+        "properties": {
+          "bbox": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bbox"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          }
+        },
+        "title": "DocumentLocationOut",
+        "type": "object"
       },
       "DocumentOut": {
         "properties": {
@@ -1025,6 +1121,211 @@
         "title": "DocumentOut",
         "type": "object"
       },
+      "EvidenceItemOut": {
+        "description": "One citable evidence item (Prompt-03 \u00a77).",
+        "properties": {
+          "document_location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentLocationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "description": "Evidence category: vendor | vendor_bank_account | invoice | purchase_order | extraction_field | review_action",
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "fused_score": {
+            "title": "Fused Score",
+            "type": "number"
+          },
+          "match_explanation": {
+            "title": "Match Explanation",
+            "type": "string"
+          },
+          "matched_field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Field"
+          },
+          "provenance": {
+            "additionalProperties": true,
+            "title": "Provenance",
+            "type": "object"
+          },
+          "record_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Version"
+          },
+          "retrieval_score": {
+            "title": "Retrieval Score",
+            "type": "number"
+          },
+          "techniques": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Techniques",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "trust_status": {
+            "title": "Trust Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_id",
+          "title",
+          "match_explanation",
+          "trust_status",
+          "retrieval_score",
+          "fused_score",
+          "techniques"
+        ],
+        "title": "EvidenceItemOut",
+        "type": "object"
+      },
+      "EvidenceMatchOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "match_kind": {
+            "title": "Match Kind",
+            "type": "string"
+          },
+          "matched_fields": {
+            "additionalProperties": true,
+            "title": "Matched Fields",
+            "type": "object"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "similarity_score": {
+            "title": "Similarity Score",
+            "type": "number"
+          },
+          "source_entity_id": {
+            "format": "uuid",
+            "title": "Source Entity Id",
+            "type": "string"
+          },
+          "source_entity_type": {
+            "title": "Source Entity Type",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_entity_id": {
+            "format": "uuid",
+            "title": "Target Entity Id",
+            "type": "string"
+          },
+          "target_entity_type": {
+            "title": "Target Entity Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_entity_type",
+          "source_entity_id",
+          "target_entity_type",
+          "target_entity_id",
+          "match_kind",
+          "similarity_score",
+          "matched_fields",
+          "status"
+        ],
+        "title": "EvidenceMatchOut",
+        "type": "object"
+      },
+      "EvidenceMetaOut": {
+        "properties": {
+          "backend": {
+            "title": "Backend",
+            "type": "string"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "seeds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Seeds",
+            "type": "array"
+          },
+          "weights": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Weights",
+            "type": "object"
+          }
+        },
+        "required": [
+          "backend",
+          "weights",
+          "seeds",
+          "latency_ms"
+        ],
+        "title": "EvidenceMetaOut",
+        "type": "object"
+      },
       "ExtractionFieldOut": {
         "properties": {
           "confidence": {
@@ -1063,9 +1364,45 @@
             "title": "Id",
             "type": "string"
           },
+          "normalized_value": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Value"
+          },
           "verification_status": {
             "title": "Verification Status",
             "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "verified_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By"
           },
           "verified_value": {
             "anyOf": [
@@ -1089,6 +1426,35 @@
           "verified_value"
         ],
         "title": "ExtractionFieldOut",
+        "type": "object"
+      },
+      "ExtractionFieldReviewIn": {
+        "description": "Human field review (R3): confirm the extracted value, or correct it.\n\nOn ``correct`` a non-empty ``verified_value`` is mandatory; the original\nextraction is preserved and the human's value lands in verified_value.",
+        "properties": {
+          "action": {
+            "enum": [
+              "confirm",
+              "correct"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "verified_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Value"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ExtractionFieldReviewIn",
         "type": "object"
       },
       "ExtractionResultOut": {
@@ -1129,9 +1495,33 @@
             ],
             "title": "Ocr Provider"
           },
+          "provider_meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Meta"
+          },
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "validation_summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validation Summary"
           }
         },
         "required": [
@@ -1145,8 +1535,71 @@
         "title": "ExtractionResultOut",
         "type": "object"
       },
+      "FindingDispositionIn": {
+        "description": "Human disposition of one signal (reviewer/org_admin).\n\nA NON-EMPTY reason (``reason``, or the legacy ``note`` alias) is\nmandatory: an override without a recorded reason is refused. The optional\n``case_id`` anchors the generated review-actions row to a case; without\nit the invoice's latest case is used, or a case-less review action is\nwritten.",
+        "properties": {
+          "case_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Id"
+          },
+          "disposition": {
+            "maxLength": 32,
+            "title": "Disposition",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "disposition"
+        ],
+        "title": "FindingDispositionIn",
+        "type": "object"
+      },
       "FraudAssessmentOut": {
         "properties": {
+          "evc": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evc"
+          },
           "explanation": {
             "items": {},
             "title": "Explanation",
@@ -1218,6 +1671,29 @@
             "title": "Disposition",
             "type": "string"
           },
+          "dispositioned_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispositioned At"
+          },
+          "dispositioned_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispositioned By"
+          },
           "evidence_refs": {
             "items": {},
             "title": "Evidence Refs",
@@ -1258,6 +1734,40 @@
         "title": "FraudFindingOut",
         "type": "object"
       },
+      "GraphGapOut": {
+        "description": "A missing relationship (R4-capped) or a structured data disagreement.",
+        "properties": {
+          "detail": {
+            "additionalProperties": true,
+            "title": "Detail",
+            "type": "object"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "relationship": {
+            "title": "Relationship",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "relationship",
+          "message",
+          "severity"
+        ],
+        "title": "GraphGapOut",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1269,6 +1779,42 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InvoiceEvidenceOut": {
+        "properties": {
+          "contradictions": {
+            "items": {
+              "$ref": "#/components/schemas/GraphGapOut"
+            },
+            "title": "Contradictions",
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItemOut"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GraphGapOut"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/EvidenceMetaOut"
+          }
+        },
+        "required": [
+          "evidence",
+          "gaps",
+          "contradictions",
+          "meta"
+        ],
+        "title": "InvoiceEvidenceOut",
         "type": "object"
       },
       "InvoiceIn": {
@@ -1536,6 +2082,133 @@
         "title": "InvoiceOut",
         "type": "object"
       },
+      "LineItemIn": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "line_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decimal string, e.g. '39.98'",
+            "title": "Line Total"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decimal string, e.g. '2'",
+            "title": "Quantity"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decimal string, e.g. '19.99'",
+            "title": "Unit Price"
+          }
+        },
+        "title": "LineItemIn",
+        "type": "object"
+      },
+      "LineItemOut": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_id": {
+            "format": "uuid",
+            "title": "Invoice Id",
+            "type": "string"
+          },
+          "line_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Total"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Price"
+          }
+        },
+        "required": [
+          "id",
+          "invoice_id",
+          "position",
+          "description",
+          "quantity",
+          "unit_price",
+          "line_total"
+        ],
+        "title": "LineItemOut",
+        "type": "object"
+      },
       "LogoutResponse": {
         "description": "200 of POST /auth/logout \u2014 the presented credential (Bearer jti or\nsession row) is revoked server-side and the cookies are cleared.",
         "properties": {
@@ -1546,6 +2219,57 @@
           }
         },
         "title": "LogoutResponse",
+        "type": "object"
+      },
+      "MatchReviewIn": {
+        "description": "Human review decision on one evidence match (reviewer/org_admin).\n\nA NON-EMPTY reason (``reason``, or the legacy ``note`` alias) is\nmandatory.",
+        "properties": {
+          "case_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "maxLength": 32,
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "MatchReviewIn",
         "type": "object"
       },
       "MeResponse": {
@@ -1684,6 +2408,110 @@
           "uploaded_by"
         ],
         "title": "ProcessedDocumentOut",
+        "type": "object"
+      },
+      "ProcessingJobOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "backend": {
+            "title": "Backend",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Id"
+          },
+          "job_type": {
+            "title": "Job Type",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "max_attempts": {
+            "title": "Max Attempts",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "job_type",
+          "document_id",
+          "invoice_id",
+          "idempotency_key",
+          "status",
+          "attempts",
+          "max_attempts",
+          "last_error",
+          "backend"
+        ],
+        "title": "ProcessingJobOut",
         "type": "object"
       },
       "PurchaseOrderIn": {
@@ -3042,6 +3870,46 @@
       }
     },
     "/api/v1/documents/{document_id}": {
+      "delete": {
+        "description": "Hard delete (org_admin only \u2014 destructive; docs/DATABASE.md \u00a71: no soft\ndelete). Refused with 409 while the document is referenced by a purchase\norder, an invoice, or a bank account's R5 verification record. The stored\nobject is deleted through the StorageProvider seam; extraction results,\nfields and the document's own processing jobs go with it.",
+        "operationId": "delete_document_api_v1_documents__document_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Delete Document",
+        "tags": [
+          "documents"
+        ]
+      },
       "get": {
         "operationId": "get_document_api_v1_documents__document_id__get",
         "parameters": [
@@ -3197,6 +4065,75 @@
         ]
       }
     },
+    "/api/v1/documents/{document_id}/fields/{field_id}": {
+      "patch": {
+        "description": "Human field review (R3): confirm or correct one extracted field.\n\nOnly ``reviewer``/``org_admin`` (docs/API.md \u00a75 role matrix \u2014 the same\nroles that verify bank accounts). ``confirm`` marks the extracted value\nhuman-verified; ``correct`` requires a non-empty ``verified_value`` and\npreserves the original extraction untouched. Both stamp verified_by/at\nand write an audit event.",
+        "operationId": "review_extraction_field_api_v1_documents__document_id__fields__field_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "field_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Field Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtractionFieldReviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractionFieldOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Review Extraction Field",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
     "/api/v1/documents/{document_id}/file": {
       "get": {
         "description": "Protected download: org-scoped 404 first, then the stored bytes with\nthe recorded content type.",
@@ -3290,6 +4227,65 @@
         "summary": "Reprocess Document",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/findings/{finding_id}/disposition": {
+      "post": {
+        "description": "Human disposition of one signal (reviewer/org_admin; audited).\n\nA non-empty reason is MANDATORY and the override is recorded as a\nreview_actions row (on the given case, the invoice's latest case, or\ncase-less). A disposition is an annotation \u2014 it never rewrites severity,\nthe assessment, or the invoice status (the \u00a78 forcing rules are not a\ndisposition away), and the original automated assessment is preserved\nimmutably.",
+        "operationId": "disposition_finding_api_v1_findings__finding_id__disposition_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Finding Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindingDispositionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudFindingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Disposition Finding",
+        "tags": [
+          "investigations"
         ]
       }
     },
@@ -3478,7 +4474,7 @@
     },
     "/api/v1/invoices/{invoice_id}/assess": {
       "post": {
-        "description": "Deterministic, explainable assessment (rules-v0.1; EVC stays NULL).\n\nPersists the assessment + per-signal findings; a ``high`` signal forces\n``needs_review`` (machine-set, audited). Never claims genuineness (R2).",
+        "description": "EVC assessment (Evidence-based Vendor Consistency): an explainable\n0-100 consistency score over six features, each carrying an uncertainty\nstate (verified_agreement / confirmed_discrepancy / insufficient_evidence).\n\nPersists the full structure in ``fraud_assessments.evc`` (features,\nweights, contributions, policy_version) + per-signal findings; review_required\nand high_risk_discrepancy force ``needs_review`` (machine-set, audited);\ncritical assessments auto-open a case (R6). Never claims genuineness (R2).",
         "operationId": "assess_invoice_api_v1_invoices__invoice_id__assess_post",
         "parameters": [
           {
@@ -3581,6 +4577,162 @@
         ]
       }
     },
+    "/api/v1/invoices/{invoice_id}/evidence": {
+      "get": {
+        "operationId": "get_invoice_evidence_api_v1_invoices__invoice_id__evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceEvidenceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Invoice Evidence",
+        "tags": [
+          "retrieval"
+        ]
+      }
+    },
+    "/api/v1/invoices/{invoice_id}/line-items": {
+      "get": {
+        "operationId": "list_line_items_api_v1_invoices__invoice_id__line_items_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LineItemOut"
+                  },
+                  "title": "Response List Line Items Api V1 Invoices  Invoice Id  Line Items Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Line Items",
+        "tags": [
+          "procurement"
+        ]
+      },
+      "post": {
+        "operationId": "create_line_item_api_v1_invoices__invoice_id__line_items_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineItemIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Line Item",
+        "tags": [
+          "procurement"
+        ]
+      }
+    },
     "/api/v1/invoices/{invoice_id}/resolve-vendor": {
       "post": {
         "operationId": "resolve_vendor_api_v1_invoices__invoice_id__resolve_vendor_post",
@@ -3636,6 +4788,162 @@
         "summary": "Resolve Vendor",
         "tags": [
           "procurement"
+        ]
+      }
+    },
+    "/api/v1/matches/{match_id}": {
+      "get": {
+        "operationId": "get_match_api_v1_matches__match_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Match Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceMatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Match",
+        "tags": [
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/matches/{match_id}/review": {
+      "post": {
+        "description": "Human review decision on one evidence match (reviewer/org_admin;\naudited). This is the disposition path the duplicate_candidate finding\npoints at via its ``evidence_refs``. A non-empty reason is MANDATORY and\nthe decision is recorded as a review_actions row; the underlying\ndetection evidence is never altered.",
+        "operationId": "review_match_api_v1_matches__match_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "match_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Match Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatchReviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceMatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Review Match",
+        "tags": [
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/processing-jobs/{job_id}": {
+      "get": {
+        "description": "One job of the caller's organization; cross-org ids are 404.",
+        "operationId": "get_processing_job_api_v1_processing_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessingJobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Processing Job",
+        "tags": [
+          "processing"
         ]
       }
     },
@@ -3793,6 +5101,33 @@
         "summary": "Get Purchase Order",
         "tags": [
           "procurement"
+        ]
+      }
+    },
+    "/api/v1/stats/dashboard": {
+      "get": {
+        "description": "Headline counts for the caller's organization only.\n\nRead-only decision support: these numbers never assert that any invoice\nis genuine (R2) \u2014 ``needs_review_invoices``/``high_risk_invoices`` are\nwork-queue sizes, not verdicts.",
+        "operationId": "dashboard_stats_api_v1_stats_dashboard_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardStatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Dashboard Stats",
+        "tags": [
+          "stats"
         ]
       }
     },

@@ -8,7 +8,10 @@ from app.api.v1.routes import (
     documents,
     health,
     investigations,
+    processing,
     procurement,
+    retrieval,
+    stats,
     vendors,
 )
 
@@ -17,6 +20,9 @@ api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(vendors.router)
 api_router.include_router(documents.router)
+api_router.include_router(processing.router)
 api_router.include_router(procurement.router)
 api_router.include_router(investigations.router)
 api_router.include_router(audit_events.router)
+api_router.include_router(stats.router)
+api_router.include_router(retrieval.router)

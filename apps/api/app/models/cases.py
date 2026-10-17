@@ -93,7 +93,10 @@ class InvestigationCase(TimestampMixin, Base):
 
 class ReviewAction(TimestampMixin, Base):
     """The human investigation record: every comment, decision, assignment,
-    status change, field verification, and bank-account action on a case."""
+    status change, field verification, and bank-account action on a case —
+    and, since EVC v1, finding dispositions / match reviews made outside a
+    case context (``case_id`` NULL; the payload names the exact finding or
+    match). Every human override carries its mandatory reason in ``body``."""
 
     __tablename__ = "review_actions"
     __table_args__ = (
@@ -106,8 +109,10 @@ class ReviewAction(TimestampMixin, Base):
     organization_id: Mapped[object] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True
     )
-    case_id: Mapped[object] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("investigation_cases.id"), nullable=False
+    # NULL for override records written outside a case context (e.g. a
+    # finding dispositioned on an invoice with no investigation case yet).
+    case_id: Mapped[object | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("investigation_cases.id"), nullable=True
     )
     # NULL = system-generated action (e.g. auto-open reason).
     actor_user_id: Mapped[object | None] = mapped_column(

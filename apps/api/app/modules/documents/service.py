@@ -23,7 +23,7 @@ from app.adapters.storage.base import build_document_key
 from app.core.config import get_settings
 from app.core.enums import DocumentKind, ProcessingStatus
 from app.core.errors import AppError, ErrorCode
-from app.models import Document, User, Vendor
+from app.models import Document, Invoice, PurchaseOrder, User, Vendor, VendorBankAccount
 
 # (mime, magic prefix) pairs — both must match, so extension lies fail.
 _SIGNATURES: tuple[tuple[str, bytes], ...] = (
@@ -163,7 +163,16 @@ def _build_storage(settings):
     if settings.storage_backend == "minio":
         from app.adapters.storage.s3 import MinIOS3Provider
 
-        return MinIOS3Provider(settings)
+        # Keyword-only constructor: positional settings would TypeError at the
+        # first minio-configured upload (bucket is required, the rest map from
+        # the storage_s3_* settings; VERIPAY_MINIO_* env names alias onto them).
+        return MinIOS3Provider(
+            bucket=settings.storage_s3_bucket,
+            endpoint_url=settings.storage_s3_endpoint_url,
+            access_key_id=settings.storage_s3_access_key_id,
+            secret_access_key=settings.storage_s3_secret_access_key,
+            region=settings.storage_s3_region,
+        )
     from app.adapters.storage.local import LocalFilesystemProvider
 
     return LocalFilesystemProvider(settings.storage_local_root)
@@ -180,6 +189,86 @@ def open_document_bytes(db: Session, document: Document) -> BytesIO:
         raise AppError(
             ErrorCode.NOT_FOUND, "Stored file is missing from document storage."
         ) from exc
+
+
+def delete_document(db: Session, *, org_id: object, document_id: object) -> Document:
+    """Hard delete (docs/DATABASE.md §1 — no soft delete; deletions audited).
+
+    Deletion is refused with 409 while the document is still referenced by a
+    purchase order, an invoice, or a bank account's R5 verification record —
+    those references carry meaning that would silently dangle. The document's
+    own dependents (extraction results + fields, processing jobs) are removed
+    with it; the stored object is deleted through the StorageProvider seam
+    (idempotent — a missing object is not an error).
+    """
+    from app.models import ExtractionField, ExtractionResult, ProcessingJob
+
+    document = get_document(db, org_id=org_id, document_id=document_id)
+
+    references = (
+        (
+            "purchase_orders.source_document_id",
+            select(PurchaseOrder.id).where(
+                PurchaseOrder.organization_id == org_id,
+                PurchaseOrder.source_document_id == document.id,
+            ),
+            "a purchase order uses it as its source document",
+        ),
+        (
+            "invoices.source_document_id",
+            select(Invoice.id).where(
+                Invoice.organization_id == org_id,
+                Invoice.source_document_id == document.id,
+            ),
+            "an invoice uses it as its source document",
+        ),
+        (
+            "vendor_bank_accounts.verification_document_id",
+            select(VendorBankAccount.id).where(
+                VendorBankAccount.organization_id == org_id,
+                VendorBankAccount.verification_document_id == document.id,
+            ),
+            "a bank account cites it as its R5 verification document",
+        ),
+    )
+    for _column, query, reason in references:
+        if db.scalar(query) is not None:
+            raise AppError(
+                ErrorCode.CONFLICT,
+                f"This document cannot be deleted: {reason}.",
+            )
+
+    settings = get_settings()
+    provider = _build_storage(settings)
+    provider.delete(document.storage_key)  # idempotent per the seam contract
+
+    for result in db.scalars(
+        select(ExtractionResult).where(
+            ExtractionResult.organization_id == org_id,
+            ExtractionResult.document_id == document.id,
+        )
+    ):
+        for field in db.scalars(
+            select(ExtractionField).where(
+                ExtractionField.extraction_result_id == result.id
+            )
+        ):
+            db.delete(field)
+        db.delete(result)
+    for job in db.scalars(
+        select(ProcessingJob).where(
+            ProcessingJob.organization_id == org_id,
+            ProcessingJob.document_id == document.id,
+        )
+    ):
+        db.delete(job)
+    # The models declare no relationship() edges, so the unit of work cannot
+    # order these deletes — flush the children first, then the document row
+    # (one transaction: a failure rolls everything back).
+    db.flush()
+    db.delete(document)
+    db.commit()
+    return document
 
 
 def set_processing_status(

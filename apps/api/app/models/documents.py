@@ -112,6 +112,14 @@ class ExtractionResult(TimestampMixin, Base):
     # Extractor + model version.
     extraction_version: Mapped[str] = mapped_column(String(32), nullable=False)
     ocr_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Provider provenance: engine notes, fallback reasons, page caps. Written
+    # whole (sa.JSON portability); read-only surface for humans, never for
+    # fraud features.
+    provider_meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Extraction-quality validation output (extraction/validation.py):
+    # arithmetic, IBAN checksum, date/currency formats, uncertain critical
+    # fields. Quality QA for humans — NOT fraud signals and never scored.
+    validation_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default=ProcessingStatus.PENDING.value
     )
@@ -152,8 +160,15 @@ class ExtractionField(TimestampMixin, Base):
         index=True,
     )
     # Set when an invoice record is created/bound from this document.
+    # NOTE: deliberately NO use_alter here — there is no FK cycle
+    # (extraction_fields → invoices → documents), and a use_alter edge is
+    # invisible to metadata table sorting, so drop_all would DROP invoices
+    # while extraction_fields rows still referenced it (SQLite FK violation
+    # on teardown once fields are linked to an invoice). The Alembic
+    # migration keeps its own use_alter because it creates extraction_fields
+    # before invoices; the schema itself is identical either way.
     invoice_id: Mapped[object | None] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("invoices.id", use_alter=True), nullable=True
+        Uuid(as_uuid=True), ForeignKey("invoices.id"), nullable=True
     )
     field_name: Mapped[str] = mapped_column(String(100), nullable=False)
     field_value: Mapped[str | None] = mapped_column(Text, nullable=True)

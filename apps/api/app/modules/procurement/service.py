@@ -15,14 +15,39 @@ Key behaviors:
 import re
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.enums import InvoiceStatus, PurchaseOrderStatus
 from app.core.errors import AppError, ErrorCode
-from app.models import Invoice, PurchaseOrder, User, Vendor
+from app.models import Invoice, InvoiceLineItem, PurchaseOrder, User, Vendor
 from app.modules.fraud.evidence import record_duplicate_number_match
 from app.modules.vendors.service import fingerprint_account, normalize_vendor_name
+
+# Extraction field names that map onto invoice columns for provenance binding
+# (docs/DATABASE.md §9 field_sources + §12 examples). Both the §12 canonical
+# names and the extractor's label vocabulary (app/modules/extraction/fields.py)
+# are mapped — provenance must survive either dialect. ``po_reference`` is
+# deliberately absent: linking a PO is a human resolution decision, never an
+# extraction side effect.
+_EXTRACTION_FIELD_TO_COLUMN: dict[str, str] = {
+    # DATABASE.md §12 canonical names.
+    "invoice_number": "invoice_number",
+    "invoice_date": "invoice_date",
+    "due_date": "due_date",
+    "total_amount": "total_amount",
+    "subtotal_amount": "subtotal_amount",
+    "tax_amount": "tax_amount",
+    "currency": "currency",
+    "remittance_bank_name": "remittance_bank_name_raw",
+    "remittance_account": "remittance_account_raw",
+    # The extractor's label vocabulary (fields.py).
+    "total": "total_amount",
+    "subtotal": "subtotal_amount",
+    "tax": "tax_amount",
+    "iban": "remittance_account_raw",
+    "bank_name": "remittance_bank_name_raw",
+}
 
 
 def get_purchase_order(db: Session, *, org_id: object, po_id: object) -> PurchaseOrder:
@@ -104,7 +129,15 @@ def create_invoice(
     remittance_bank_name_raw: str | None, remittance_account_raw: str | None,
     source_document_id: object | None,
 ) -> Invoice:
-    """Create an invoice; duplicate numbers are recorded, never rejected."""
+    """Create an invoice; duplicate numbers are recorded, never rejected.
+
+    With ``source_document_id`` the invoice binds the document's extraction
+    provenance (R3): extraction fields whose names map to invoice columns are
+    stamped into ``field_sources`` with ``origin: "extracted"``, so the fraud
+    gate and the field_provenance_conflict signal are reachable through the
+    API. Invoice columns stay the source of truth — binding never overwrites
+    a human-entered value; it only attaches provenance.
+    """
     if vendor_id is not None:
         vendor = db.scalar(
             select(Vendor).where(
@@ -115,6 +148,12 @@ def create_invoice(
             raise AppError(ErrorCode.NOT_FOUND, "Vendor not found.")
     if purchase_order_id is not None:
         get_purchase_order(db, org_id=org_id, po_id=purchase_order_id)
+    if source_document_id is not None:
+        # Org-scoped: attaching another tenant's document id is a 404, not a
+        # silent cross-tenant reference (API.md §5).
+        from app.modules.documents.service import get_document
+
+        get_document(db, org_id=org_id, document_id=source_document_id)
 
     field_sources: dict[str, dict] = {}
     for column, value in (
@@ -153,11 +192,98 @@ def create_invoice(
     db.add(invoice)
     db.flush()  # id needed for evidence matches
 
+    if source_document_id is not None:
+        _bind_extracted_sources(db, invoice)
     if vendor_id is not None:
         _record_number_duplicates(db, invoice)
 
     db.commit()
     return invoice
+
+
+def _bind_extracted_sources(db: Session, invoice: Invoice) -> None:
+    """Stamp extracted provenance from the bound document's latest extraction.
+
+    For each mapped extraction field carrying a value:
+    - a column the human did NOT enter gains ``origin: "extracted"`` with the
+      field id + confidence at ingest + extracted value;
+    - a human-entered column KEEPS ``origin: "manual"`` (the column wins) but
+      also carries the extracted provenance, so a disagreement later surfaces
+      as ``field_provenance_conflict`` (fraud service; ARCHITECTURE §8.3).
+    Extraction fields of the bound document are linked to the invoice row.
+    """
+    from app.modules.extraction import service as extraction_service
+
+    result = extraction_service.get_result(
+        db, org_id=invoice.organization_id, document_id=invoice.source_document_id
+    )
+    if result is None:
+        return
+    sources = dict(invoice.field_sources or {})
+    for field in extraction_service.list_fields(db, result_id=result.id):
+        column = _EXTRACTION_FIELD_TO_COLUMN.get(field.field_name)
+        if column is None or field.field_value is None:
+            continue
+        provenance = {
+            "extracted_field_id": str(field.id),
+            "confidence_at_ingest": field.confidence,
+            "extracted_value": field.field_value,
+        }
+        existing = sources.get(column)
+        if existing is None:
+            sources[column] = {"origin": "extracted", **provenance}
+        else:
+            sources[column] = {**existing, **provenance}
+        field.invoice_id = invoice.id
+    invoice.field_sources = sources
+
+
+def create_line_item(
+    db: Session, *, org_id: object, invoice_id: object, actor: User,
+    description: str | None, quantity: Decimal | None,
+    unit_price: Decimal | None, line_total: Decimal | None,
+) -> InvoiceLineItem:
+    """Append one line item; positions are per-invoice sequence numbers."""
+    invoice = get_invoice(db, org_id=org_id, invoice_id=invoice_id)
+    if invoice.status == InvoiceStatus.CLOSED.value:
+        raise AppError(
+            ErrorCode.BUSINESS_RULE_VIOLATION,
+            "A closed invoice cannot be modified.",
+        )
+    last_position = db.scalar(
+        select(func.max(InvoiceLineItem.position)).where(
+            InvoiceLineItem.organization_id == org_id,
+            InvoiceLineItem.invoice_id == invoice.id,
+        )
+    )
+    row = InvoiceLineItem(
+        organization_id=org_id,
+        invoice_id=invoice.id,
+        position=(last_position or 0) + 1,
+        description=description,
+        quantity=quantity,
+        unit_price=unit_price,
+        line_total=line_total,
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+def list_line_items(
+    db: Session, *, org_id: object, invoice_id: object
+) -> list[InvoiceLineItem]:
+    get_invoice(db, org_id=org_id, invoice_id=invoice_id)  # org-scoped 404 first
+    return list(
+        db.scalars(
+            select(InvoiceLineItem)
+            .where(
+                InvoiceLineItem.organization_id == org_id,
+                InvoiceLineItem.invoice_id == invoice_id,
+            )
+            .order_by(InvoiceLineItem.position)
+        )
+    )
 
 
 def _record_number_duplicates(db: Session, invoice: Invoice) -> int:

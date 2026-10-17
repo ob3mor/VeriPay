@@ -1,0 +1,111 @@
+{
+  "policy_version": "evc-1.0",
+  "title": "EVC — Evidence-based Vendor Consistency (policy v1)",
+  "description": "Explainable 0-100 consistency score. Every contribution traces to a stored feature value, a policy weight and source evidence refs. The score is a consistency measure, never a fraud probability (R2): it is composed ONLY of confirmed discrepancies; insufficient evidence contributes zero and is reported as uncertainty instead. Machine-enforced floors below are cross-checked by the loader and may not be weakened by editing this file.",
+  "weights": {
+    "bank_account_consistency": 30,
+    "po_mismatch": 25,
+    "duplicate_indicators": 15,
+    "untrusted_source_indicators": 15,
+    "identity_consistency": 10,
+    "historical_anomalies": 5
+  },
+  "thresholds": {
+    "review_required": 30,
+    "high_risk": 60
+  },
+  "severity_factors": {
+    "low": 0.35,
+    "medium": 0.7,
+    "high": 1.0
+  },
+  "critical_rule": {
+    "min_high_signals": 2,
+    "description": "risk_level becomes critical (R6 auto-case) when at least this many DISTINCT high-severity confirmed discrepancies exist on one assessment."
+  },
+  "duplicate_detection": {
+    "number_match_date_window_days": 7,
+    "near_duplicate_min_overlap": 0.75,
+    "near_duplicate_date_window_days": 31,
+    "field_overlap_min_matches": 2,
+    "corrected_version_newer_date_days": 0,
+    "description": "Axes: (1) exact content via the per-org SHA-256 document dedup (two invoice rows bound to the same document row = same bytes billed twice); (2) normalized invoice numbers (retrieval normalize_identifier: INV-2024/007 == inv 2024 007); (3) vendor entity match via the retrieval resolution module when numbers collide across different vendor records; (4) amount+currency and date comparison; (5) near-duplicate field overlap. A same-number pair whose amount differs AND whose date is strictly newer is classified 'corrected_version_candidate' (low) — a genuine corrected re-issue is still human-confirmed, but is not scored like a duplicate upload."
+  },
+  "history": {
+    "min_invoices": 3,
+    "amount_jump_factor": 3.0,
+    "description": "Fewer than min_invoices comparable prior invoices = insufficient_evidence (absence of history is not fraud, R4)."
+  },
+  "signals": {
+    "default_severities": {
+      "missing_evidence": "medium",
+      "unverified_input": "low",
+      "field_provenance_conflict": "medium",
+      "duplicate_candidate": "medium",
+      "amount_mismatch": "high",
+      "bank_account_unverified": "high",
+      "unknown_vendor": "medium",
+      "ocr_uncertain": "medium"
+    },
+    "forcing": {
+      "duplicate_candidate": true,
+      "amount_mismatch": true,
+      "bank_account_unverified": true,
+      "unknown_vendor": true,
+      "ocr_uncertain": true
+    },
+    "forcing_note": "§8 forcing rules: these signal types force invoices.status = needs_review. missing_evidence / unverified_input / field_provenance_conflict are INFORMATIONAL (no forcing — 'humans decide whether to look' / 'column wins'); a medium signal forces review only when its type forces, while ANY high+ severity is material by itself.",
+    "severity_floors": {
+      "bank_account_unverified": "high"
+    },
+    "severity_caps": {
+      "missing_evidence": "medium"
+    },
+    "override_minimum_result": {
+      "bank_account_unverified": "review_required",
+      "unknown_vendor": "review_required",
+      "ocr_uncertain": "review_required"
+    }
+  },
+  "features": {
+    "bank_account_consistency": {
+      "signals": ["bank_account_unverified", "missing_evidence"],
+      "verified_agreement": "The printed remittance fingerprint matches an APPROVED bank account (independently verified by a human, R5).",
+      "confirmed_discrepancy": "The printed remittance details match no APPROVED account — the payment destination is unverified (override: mandatory review).",
+      "insufficient_evidence": "No printed pay-to details on the invoice — the destination simply cannot be compared."
+    },
+    "identity_consistency": {
+      "signals": ["unknown_vendor", "field_provenance_conflict"],
+      "verified_agreement": "Gate-passed document identity fields agree with the vendor registry.",
+      "confirmed_discrepancy": "The vendor is blocked in the registry, or gate-passed identity fields disagree with the registry record.",
+      "insufficient_evidence": "The vendor is unresolved, or the document carries no gate-passed identity fields to compare — identity is unknown, never guessed."
+    },
+    "duplicate_indicators": {
+      "signals": ["duplicate_candidate"],
+      "verified_agreement": "No duplicate indicator fired across any axis.",
+      "confirmed_discrepancy": "A duplicate/near-duplicate/field-overlap candidate exists — a human dispositions it via the evidence match.",
+      "insufficient_evidence": "Never used: a duplicate scan always runs; an empty result is verified_agreement."
+    },
+    "po_mismatch": {
+      "signals": ["amount_mismatch", "missing_evidence"],
+      "verified_agreement": "Invoice total equals the linked PO amount (and currencies agree).",
+      "confirmed_discrepancy": "Invoice total differs from the PO amount, or the currencies differ.",
+      "insufficient_evidence": "No PO is linked, or the PO carries no amount — the record may simply not exist in VeriPay (R4)."
+    },
+    "historical_anomalies": {
+      "signals": ["amount_mismatch"],
+      "verified_agreement": "The amount is consistent with the vendor's comparable history.",
+      "confirmed_discrepancy": "The amount exceeds the history jump factor times the vendor's median historical amount.",
+      "insufficient_evidence": "Fewer than the minimum comparable prior invoices — no trusted history to compare against."
+    },
+    "untrusted_source_indicators": {
+      "signals": ["unverified_input", "field_provenance_conflict", "ocr_uncertain"],
+      "verified_agreement": "All machine-extracted inputs used are gate-passed and agree with the invoice columns.",
+      "confirmed_discrepancy": "An invoice column disagrees with its gate-passed extracted provenance.",
+      "insufficient_evidence": "Below-gate extracted values were excluded from evidence (R3) — the affected comparisons are uncertain, not discrepant."
+    }
+  },
+  "explainability": {
+    "note": "Document-appearance similarity (near-duplicate detection) is a duplicate indicator ONLY. It never contributes to any 'agreement' or authenticity conclusion — feature state verified_agreement means confirmed consistency of facts, never genuineness (R2)."
+  }
+}

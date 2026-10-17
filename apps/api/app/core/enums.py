@@ -129,8 +129,13 @@ class MatchStatus(StrEnum):
 
 class SignalType(StrEnum):
     """The fraud signal vocabulary — single source of truth is
-    docs/ARCHITECTURE.md §8. Default severities live in
-    core/fraud_rules.py; bank_account_unverified has severity floor high."""
+    docs/ARCHITECTURE.md §8 (extended additively by EVC v1: unknown_vendor and
+    ocr_uncertain are uncertainty/absence-flavored signals, severity-capped at
+    medium, whose only forcing is a mandatory human review — they never claim
+    fraud by themselves). Default severities live in
+    app/modules/fraud/policy_v1.json; bank_account_unverified has severity
+    floor high and missing_evidence is capped at medium (machine-enforced,
+    docs/ARCHITECTURE.md §8.4/§8.5)."""
 
     MISSING_EVIDENCE = "missing_evidence"
     UNVERIFIED_INPUT = "unverified_input"
@@ -138,6 +143,12 @@ class SignalType(StrEnum):
     DUPLICATE_CANDIDATE = "duplicate_candidate"
     AMOUNT_MISMATCH = "amount_mismatch"
     BANK_ACCOUNT_UNVERIFIED = "bank_account_unverified"
+    # EVC v1 additions (additive; both ≤ medium, never a fraud claim):
+    # the invoice's vendor is unresolved — review required, never guessed.
+    UNKNOWN_VENDOR = "unknown_vendor"
+    # The bound document's extraction failed or its critical fields are
+    # uncertain — manual verification is required before anything is scored.
+    OCR_UNCERTAIN = "ocr_uncertain"
 
 
 class FindingDisposition(StrEnum):

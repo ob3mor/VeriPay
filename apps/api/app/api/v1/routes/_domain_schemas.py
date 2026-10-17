@@ -2,7 +2,7 @@
 
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # -------------------------------------------------------- purchase orders ---
@@ -64,6 +64,26 @@ class ResolveVendorIn(BaseModel):
     vendor_name: str | None = Field(default=None, max_length=200)
 
 
+# ----------------------------------------------------------- line items ---
+class LineItemIn(BaseModel):
+    description: str | None = Field(default=None, max_length=2000)
+    quantity: str | None = Field(default=None, description="Decimal string, e.g. '2'")
+    unit_price: str | None = Field(default=None, description="Decimal string, e.g. '19.99'")
+    line_total: str | None = Field(default=None, description="Decimal string, e.g. '39.98'")
+
+
+class LineItemOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    invoice_id: uuid.UUID
+    position: int
+    description: str | None
+    quantity: str | None
+    unit_price: str | None
+    line_total: str | None
+
+
 # ------------------------------------------------------------------ fraud ---
 class FraudFindingOut(BaseModel):
     model_config = {"from_attributes": True}
@@ -75,6 +95,69 @@ class FraudFindingOut(BaseModel):
     field_refs: list
     evidence_refs: list
     disposition: str
+    dispositioned_by: uuid.UUID | None = None
+    dispositioned_at: str | None = None
+
+
+class FindingDispositionIn(BaseModel):
+    """Human disposition of one signal (reviewer/org_admin).
+
+    A NON-EMPTY reason (``reason``, or the legacy ``note`` alias) is
+    mandatory: an override without a recorded reason is refused. The optional
+    ``case_id`` anchors the generated review-actions row to a case; without
+    it the invoice's latest case is used, or a case-less review action is
+    written."""
+
+    disposition: str = Field(max_length=32)
+    reason: str | None = Field(default=None, max_length=2000)
+    note: str | None = Field(default=None, max_length=2000)
+    case_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _reason_required(self) -> "FindingDispositionIn":
+        text = (self.reason or self.note or "").strip()
+        if not text:
+            raise ValueError(
+                "A disposition reason is mandatory (reason or note)."
+            )
+        self.reason = text
+        return self
+
+
+class EvidenceMatchOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    source_entity_type: str
+    source_entity_id: uuid.UUID
+    target_entity_type: str
+    target_entity_id: uuid.UUID
+    match_kind: str
+    similarity_score: float
+    matched_fields: dict
+    status: str
+    reviewed_by: uuid.UUID | None = None
+    reviewed_at: str | None = None
+
+
+class MatchReviewIn(BaseModel):
+    """Human review decision on one evidence match (reviewer/org_admin).
+
+    A NON-EMPTY reason (``reason``, or the legacy ``note`` alias) is
+    mandatory."""
+
+    status: str = Field(max_length=32)
+    reason: str | None = Field(default=None, max_length=2000)
+    note: str | None = Field(default=None, max_length=2000)
+    case_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _reason_required(self) -> "MatchReviewIn":
+        text = (self.reason or self.note or "").strip()
+        if not text:
+            raise ValueError("A review reason is mandatory (reason or note).")
+        self.reason = text
+        return self
 
 
 class FraudAssessmentOut(BaseModel):
@@ -86,6 +169,9 @@ class FraudAssessmentOut(BaseModel):
     signals: list
     explanation: list
     status: str
+    # The EVC structure (features, weights, contributions, policy_version,
+    # result state, overrides) — NULL only for legacy rows.
+    evc: dict | None = None
     findings: list[FraudFindingOut] = []
 
 
@@ -110,6 +196,8 @@ class CaseOut(BaseModel):
     status: str
     outcome: str | None
     assigned_to: uuid.UUID | None
+    # R6 provenance: the assessment that opened the case (auto-opened ones).
+    triggering_assessment_id: uuid.UUID | None = None
 
 
 class CaseAssignIn(BaseModel):
@@ -150,3 +238,33 @@ class AuditEventOut(BaseModel):
     entity_id: uuid.UUID | None
     detail: dict | None
     occurred_at: str | None = None
+
+
+# ------------------------------------------------------------------ stats ---
+class DashboardStatsOut(BaseModel):
+    """Org-scoped headline counts. Work-queue sizes — never verdicts (R2)."""
+
+    organization_id: uuid.UUID
+    total_invoices: int
+    needs_review_invoices: int
+    open_cases: int
+    high_risk_invoices: int
+    processing_failures: int
+
+
+# ------------------------------------------------------------ processing ---
+class ProcessingJobOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    job_type: str
+    document_id: uuid.UUID | None
+    invoice_id: uuid.UUID | None
+    idempotency_key: str
+    status: str
+    attempts: int
+    max_attempts: int
+    last_error: str | None
+    backend: str
+    started_at: str | None = None
+    completed_at: str | None = None

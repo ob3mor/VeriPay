@@ -184,6 +184,68 @@ def get_invoice(
     return _invoice_out(service.get_invoice(db, org_id=actor.organization_id, invoice_id=invoice_id))
 
 
+# ------------------------------------------------------------ line items ---
+def _line_item_out(item) -> ds.LineItemOut:
+    return ds.LineItemOut(
+        id=item.id,
+        invoice_id=item.invoice_id,
+        position=item.position,
+        description=item.description,
+        quantity=str(item.quantity) if item.quantity is not None else None,
+        unit_price=str(item.unit_price) if item.unit_price is not None else None,
+        line_total=str(item.line_total) if item.line_total is not None else None,
+    )
+
+
+@router.post(
+    "/invoices/{invoice_id}/line-items",
+    response_model=ds.LineItemOut,
+    status_code=201,
+)
+def create_line_item(
+    invoice_id: uuid.UUID,
+    payload: ds.LineItemIn,
+    db: _Db,
+    request: Request,
+    actor: Annotated[User, Depends(_contributor)],
+) -> ds.LineItemOut:
+    item = service.create_line_item(
+        db,
+        org_id=actor.organization_id,
+        invoice_id=invoice_id,
+        actor=actor,
+        description=payload.description,
+        quantity=_dec(payload.quantity),
+        unit_price=_dec(payload.unit_price),
+        line_total=_dec(payload.line_total),
+    )
+    record_audit(
+        db,
+        action="invoice.line_item.created",
+        organization_id=actor.organization_id,
+        actor_user_id=actor.id,
+        entity_type="invoice_line_item",
+        entity_id=item.id,
+        detail={"invoice_id": str(invoice_id), "position": item.position},
+        context=AuditContext.from_request(request),
+    )
+    return _line_item_out(item)
+
+
+@router.get(
+    "/invoices/{invoice_id}/line-items", response_model=list[ds.LineItemOut]
+)
+def list_line_items(
+    invoice_id: uuid.UUID,
+    db: _Db,
+    actor: Annotated[User, Depends(get_current_user)],
+) -> list[ds.LineItemOut]:
+    rows = service.list_line_items(
+        db, org_id=actor.organization_id, invoice_id=invoice_id
+    )
+    return [_line_item_out(item) for item in rows]
+
+
 @router.post("/invoices/{invoice_id}/resolve-vendor", response_model=ds.InvoiceOut)
 def resolve_vendor(
     invoice_id: uuid.UUID,

@@ -1,70 +1,60 @@
-"""Explainable fraud assessment (deterministic rules v0.1; EVC = Phase 4).
+﻿"""Explainable fraud assessment â€” EVC (Evidence-based Vendor Consistency) v1.
 
-Business invariants enforced here (docs/ARCHITECTURE.md §8 — normative):
+Business invariants enforced here (docs/ARCHITECTURE.md Â§8 â€” normative):
 
-- R3: only manual values or extracted values with confidence ≥ threshold are
-  usable; below-gate inputs emit ``unverified_input`` (low), never a claim.
-- R4: absence (no PO, no accounts on file) is ``missing_evidence`` capped at
-  ``medium`` — never high/critical.
-- R5: any remittance fingerprint that does not match an APPROVED account →
-  ``bank_account_unverified`` with severity floor ``high``; forces
-  ``needs_review``. No code path here can approve an account.
-- R2: no genuineness verdict exists anywhere — signals + explanations only.
-  Rule v0.1 never emits ``critical``; the R6 auto-case hook is wired for the
-  day a future model does.
+- R2: no genuineness verdict exists anywhere â€” signals + explanations +
+  residual uncertainty only. The EVC score measures confirmed material
+  inconsistency, never a fraud probability.
+- R3: only manual values or extracted values with confidence â‰¥ threshold are
+  usable; below-gate inputs emit ``unverified_input`` (low), never a claim,
+  and critical OCR uncertainty raises the manual-verification flag.
+- R4: absence (no PO, no accounts on file, no history) is
+  ``insufficient_evidence`` with ``missing_evidence`` capped at ``medium`` â€”
+  never high/critical, and it contributes zero to the score.
+- R5: any remittance fingerprint that does not match an APPROVED account â†’
+  ``bank_account_unverified`` with severity floor ``high`` and the
+  unverified-destination override â†’ mandatory review. No code path here can
+  approve an account.
+- R6: critical assessments (â‰¥ 2 distinct high-severity discrepancies) open a
+  case automatically (system actor); nothing but a human closes it.
+
+Every assessment persists: the feature values with weights, contributions and
+evidence refs (``fraud_assessments.evc`` + ``feature_snapshot``), the policy
+version that produced it, and the ordered explanations. Assessments are
+append-only â€” human dispositions are annotations on findings (with mandatory
+reasons, recorded as review actions); the original assessment and evidence
+are never rewritten.
 """
 
-from dataclasses import dataclass
-from decimal import Decimal
+from datetime import datetime, timezone
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.core.enums import (
     FindingDisposition,
     InvoiceStatus,
-    RiskLevel,
-    SignalType,
+    MatchStatus,
 )
+from app.core.errors import AppError, ErrorCode
 from app.models import (
+    EvidenceMatch,
     FraudAssessment,
     FraudFinding,
     Invoice,
-    PurchaseOrder,
     User,
-    Vendor,
-    VendorBankAccount,
 )
 from app.modules.audit.service import AuditContext, record_audit
 from app.modules.cases.service import open_case_for_critical_assessment
-from app.modules.fraud.evidence import record_duplicate_number_match
-from app.modules.vendors.service import find_approved_account_by_fingerprint
+from app.modules.fraud.duplicates import DuplicateHit, find_duplicate_candidates
+from app.modules.fraud.evidence import record_evidence_match
+from app.modules.fraud.evc import MODEL_VERSION_PREFIX, Signal, build_explanation, compute_evc
+from app.modules.fraud.policy import load_policy
 
-MODEL_VERSION = "rules-v0.1"
-
-_SEVERITY_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
-
-
-@dataclass(frozen=True)
-class _Signal:
-    signal_type: SignalType
-    severity: str
-    message: str
-    field_refs: tuple[str, ...] = ()
-    evidence_refs: tuple[str, ...] = ()
-
-
-def _default_severity(signal: SignalType) -> str:
-    return {
-        SignalType.MISSING_EVIDENCE: "medium",
-        SignalType.UNVERIFIED_INPUT: "low",
-        SignalType.FIELD_PROVENANCE_CONFLICT: "medium",
-        SignalType.DUPLICATE_CANDIDATE: "medium",
-        SignalType.AMOUNT_MISMATCH: "high",
-        SignalType.BANK_ACCOUNT_UNVERIFIED: "high",
-    }[signal]
-
+# Informational default; the authoritative version stored on each assessment
+# is "<prefix>-<policy_version>" from the loaded policy.
+MODEL_VERSION = "evc-1.0"
 
 def get_latest_assessment(db: Session, *, org_id: object, invoice_id: object) -> FraudAssessment | None:
     return db.scalar(
@@ -87,37 +77,259 @@ def list_findings(db: Session, *, assessment_id: object) -> list[FraudFinding]:
     )
 
 
+# ------------------------------------------------------ human dispositions ---
+def get_finding(db: Session, *, org_id: object, finding_id: object) -> FraudFinding:
+    finding = db.scalar(
+        select(FraudFinding).where(
+            FraudFinding.id == finding_id, FraudFinding.organization_id == org_id
+        )
+    )
+    if finding is None:
+        raise AppError(ErrorCode.NOT_FOUND, "Finding not found.")
+    return finding
+
+
+def _latest_case_id_for_invoice(db: Session, *, org_id: object, invoice_id: object) -> object | None:
+    from app.models import InvestigationCase
+
+    return db.scalar(
+        select(InvestigationCase.id)
+        .where(
+            InvestigationCase.organization_id == org_id,
+            InvestigationCase.invoice_id == invoice_id,
+        )
+        .order_by(InvestigationCase.created_at.desc())
+    )
+
+
+def disposition_finding(
+    db: Session, *, org_id: object, finding_id: object, actor: User,
+    disposition: str, reason: str, case_id: object | None = None,
+) -> FraudFinding:
+    """Human disposition of one signal â€” the override flow (reviewer/org_admin).
+
+    A NON-EMPTY reason is mandatory; the override is recorded as a
+    ``review_actions`` row (on the given case, the invoice's latest case, or
+    with a NULL case when no case context exists yet) so the investigation
+    record carries every human decision. The disposition never mutates
+    severity, the assessment, or the invoice status â€” the original automated
+    assessment + evidence are preserved immutably (the Â§8 severity floors and
+    forcing rules are not dispositioned away).
+    """
+    if disposition not in {d.value for d in FindingDisposition}:
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "Unknown finding disposition; expected open/acknowledged/dismissed.",
+        )
+    if not (reason or "").strip():
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "A disposition reason is mandatory â€” overrides without a recorded "
+            "reason are not accepted.",
+        )
+    finding = get_finding(db, org_id=org_id, finding_id=finding_id)
+    previous = finding.disposition
+    finding.disposition = disposition
+    finding.dispositioned_by = actor.id
+    finding.dispositioned_at = datetime.now(timezone.utc)
+
+    resolved_case_id = case_id
+    if resolved_case_id is None:
+        resolved_case_id = _latest_case_id_for_invoice(
+            db, org_id=org_id, invoice_id=finding.invoice_id
+        )
+    from app.modules.cases.service import record_override_action
+
+    record_override_action(
+        db,
+        org_id=org_id,
+        actor=actor,
+        case_id=resolved_case_id,
+        body=reason.strip(),
+        payload={
+            "finding_id": str(finding.id),
+            "assessment_id": str(finding.assessment_id),
+            "signal_type": finding.signal_type,
+            "from": previous,
+            "to": disposition,
+        },
+    )
+    db.commit()
+    record_audit(
+        db,
+        action="finding.dispositioned",
+        organization_id=org_id,
+        actor_user_id=actor.id,
+        entity_type="fraud_finding",
+        entity_id=finding.id,
+        detail={
+            "signal_type": finding.signal_type,
+            "assessment_id": str(finding.assessment_id),
+            "from": previous,
+            "to": disposition,
+            "reason": reason.strip(),
+            "case_id": str(resolved_case_id) if resolved_case_id else None,
+        },
+    )
+    return finding
+
+
+def get_match(db: Session, *, org_id: object, match_id: object) -> EvidenceMatch:
+    match = db.scalar(
+        select(EvidenceMatch).where(
+            EvidenceMatch.id == match_id, EvidenceMatch.organization_id == org_id
+        )
+    )
+    if match is None:
+        raise AppError(ErrorCode.NOT_FOUND, "Evidence match not found.")
+    return match
+
+
+def _match_invoice_id(match: EvidenceMatch) -> object | None:
+    if match.source_entity_type == "invoice":
+        return match.source_entity_id
+    if match.target_entity_type == "invoice":
+        return match.target_entity_id
+    return None
+
+
+def review_match(
+    db: Session, *, org_id: object, match_id: object, actor: User,
+    status: str, reason: str, case_id: object | None = None,
+) -> EvidenceMatch:
+    """Human review decision on one evidence match (e.g. a duplicate).
+
+    ``status`` is a decision â€” dismissed or confirmed; ``open`` is not a
+    decision and cannot be written. A NON-EMPTY reason is mandatory and the
+    decision is recorded as a ``review_actions`` row. The match's underlying
+    detection evidence is never altered.
+    """
+    if status not in {MatchStatus.DISMISSED.value, MatchStatus.CONFIRMED.value}:
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "Unknown match status; expected dismissed/confirmed.",
+        )
+    if not (reason or "").strip():
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "A review reason is mandatory â€” match decisions without a "
+            "recorded reason are not accepted.",
+        )
+    match = get_match(db, org_id=org_id, match_id=match_id)
+    previous = match.status
+    match.status = status
+    match.reviewed_by = actor.id
+    match.reviewed_at = datetime.now(timezone.utc)
+
+    invoice_id = _match_invoice_id(match)
+    resolved_case_id = case_id
+    if resolved_case_id is None and invoice_id is not None:
+        resolved_case_id = _latest_case_id_for_invoice(
+            db, org_id=org_id, invoice_id=invoice_id
+        )
+    from app.modules.cases.service import record_override_action
+
+    record_override_action(
+        db,
+        org_id=org_id,
+        actor=actor,
+        case_id=resolved_case_id,
+        body=reason.strip(),
+        payload={
+            "match_id": str(match.id),
+            "match_kind": match.match_kind,
+            "from": previous,
+            "to": status,
+        },
+    )
+    db.commit()
+    record_audit(
+        db,
+        action="match.reviewed",
+        organization_id=org_id,
+        actor_user_id=actor.id,
+        entity_type="evidence_match",
+        entity_id=match.id,
+        detail={
+            "match_kind": match.match_kind,
+            "from": previous,
+            "to": status,
+            "reason": reason.strip(),
+            "case_id": str(resolved_case_id) if resolved_case_id else None,
+        },
+    )
+    return match
+
+
 def assess_invoice(
     db: Session, *, org_id: object, invoice_id: object, actor: User | None,
     context: AuditContext | None = None,
 ) -> FraudAssessment:
-    """Compute the deterministic assessment and persist it (append-only)."""
+    """Compute the EVC assessment and persist it (append-only)."""
     from app.modules.procurement.service import get_invoice
 
+    policy = load_policy()
     invoice = get_invoice(db, org_id=org_id, invoice_id=invoice_id)
-    signals = _compute_signals(db, invoice)
-    risk_level = _level_from(signals)
-    risk_score = _score_from(signals)
+
+    # Duplicate detection first: its hits feed both the evidence_matches
+    # rows and the duplicate_indicators feature.
+    hits: list[DuplicateHit] = find_duplicate_candidates(db, invoice=invoice)
+    for hit in hits:
+        record_evidence_match(
+            db,
+            org_id=invoice.organization_id,
+            source_type="invoice",
+            source_id=invoice.id,
+            target_type="invoice",
+            target_id=hit.target.id,
+            match_kind=hit.kind,
+            similarity=hit.similarity,
+            matched_fields=hit.matched_fields,
+            module="fraud",
+        )
+
+    result = compute_evc(db, invoice=invoice, duplicate_hits=hits, policy=policy)
+    signals = result.signals
+
+    # Bank-account collisions (printed details match a NON-approved on-file
+    # account) are recorded as evidence matches so the human sees exactly
+    # WHICH account collides â€” provenance for the R5 finding, never a guess.
+    bank_feature = next(
+        (f for f in result.features if f.key == "bank_account_consistency"), None
+    )
+    if bank_feature is not None:
+        for collision in bank_feature.observations.get("non_approved_collisions", []):
+            record_evidence_match(
+                db,
+                org_id=invoice.organization_id,
+                source_type="invoice",
+                source_id=invoice.id,
+                target_type="vendor_bank_account",
+                # Observations are JSON (string ids) â€” coerce back for the
+                # Uuid(as_uuid=True) column binding.
+                target_id=UUID(str(collision["account_id"])),
+                match_kind="bank_account",
+                similarity=1.0,
+                matched_fields={
+                    "axis": "remittance fingerprint",
+                    "account_status": collision["status"],
+                    "vendor_id": collision["vendor_id"],
+                },
+                module="fraud",
+            )
 
     assessment = FraudAssessment(
         organization_id=org_id,
         invoice_id=invoice.id,
-        risk_level=risk_level,
-        risk_score=risk_score,
-        model_version=MODEL_VERSION,
-        feature_snapshot=_feature_snapshot(invoice),
-        signals=[
-            {
-                "type": s.signal_type.value,
-                "severity": s.severity,
-                "message": s.message,
-                "field_refs": list(s.field_refs),
-                "evidence_refs": list(s.evidence_refs),
-            }
-            for s in signals
-        ],
-        explanation=_explain(invoice, signals),
-        evc=None,  # Phase 4 placeholder — stays NULL (docs/ARCHITECTURE §8.6)
+        risk_level=result.risk_level,
+        risk_score=result.score,
+        model_version=f"{MODEL_VERSION_PREFIX}-{result.policy_version}",
+        feature_snapshot=_feature_snapshot(invoice, result),
+        signals=[s.to_dict() for s in signals],
+        explanation=build_explanation(result),
+        # Phase-4 moment: the reserved column now carries the full EVC
+        # structure (features, weights, contributions, policy_version).
+        evc=result.payload(),
         status="complete",
         triggered_by_user_id=actor.id if actor else None,
     )
@@ -139,14 +351,17 @@ def assess_invoice(
             )
         )
 
-    # Forcing rules (§8): high ⇒ needs_review (machine-set, audited).
-    if any(s.severity in ("high", "critical") for s in signals):
-        if invoice.status in (InvoiceStatus.RECEIVED.value, InvoiceStatus.PROCESSING.value):
-            invoice.status = InvoiceStatus.NEEDS_REVIEW.value
+    # Forcing rules (Â§8 via the result states): review_required and
+    # high_risk_discrepancy set needs_review (machine-set, audited); the
+    # closed status is never overwritten by a machine.
+    if result.force_review and invoice.status in (
+        InvoiceStatus.RECEIVED.value, InvoiceStatus.PROCESSING.value,
+    ):
+        invoice.status = InvoiceStatus.NEEDS_REVIEW.value
 
     db.commit()
 
-    # R6 hook: when a future model emits critical, a case opens (system actor).
+    # R6 hook: critical assessments open a case (system actor); idempotent.
     open_case_for_critical_assessment(db, assessment=assessment, context=context)
 
     record_audit(
@@ -160,7 +375,10 @@ def assess_invoice(
         detail={
             "invoice_id": str(invoice.id),
             "risk_level": assessment.risk_level,
-            "model_version": MODEL_VERSION,
+            "model_version": assessment.model_version,
+            "policy_version": result.policy_version,
+            "result_state": result.result_state,
+            "score": result.score,
             "signals": [s.signal_type.value for s in signals],
         },
         context=context,
@@ -168,187 +386,29 @@ def assess_invoice(
     return assessment
 
 
-def _compute_signals(db: Session, invoice: Invoice) -> list[_Signal]:
-    signals: list[_Signal] = []
-    threshold = get_settings().ocr_confidence_threshold
-
-    vendor = db.get(Vendor, invoice.vendor_id) if invoice.vendor_id else None
-
-    # --- R4: missing PO is a neutral gap -----------------------------------
-    if invoice.purchase_order_id is None:
-        signals.append(
-            _Signal(
-                SignalType.MISSING_EVIDENCE,
-                "medium",
-                "No purchase order is linked to this invoice; the record may "
-                "simply not exist in VeriPay.",
-                field_refs=("purchase_order_id",),
-            )
-        )
-    else:
-        po = db.get(PurchaseOrder, invoice.purchase_order_id)
-        # --- amount mismatch (high) ----------------------------------------
-        if (
-            po is not None
-            and invoice.total_amount is not None
-            and po.amount is not None
-            and po.currency == (invoice.currency or po.currency)
-            and Decimal(str(invoice.total_amount)) != Decimal(str(po.amount))
-        ):
-            signals.append(
-                _Signal(
-                    SignalType.AMOUNT_MISMATCH,
-                    "high",
-                    f"Invoice total {invoice.total_amount} differs from the "
-                    f"purchase-order amount {po.amount}.",
-                    field_refs=("total_amount",),
-                )
-            )
-
-    # --- R5: pay-to destination vs approved accounts -----------------------
-    has_accounts = vendor is not None and db.scalar(
-        select(VendorBankAccount.id).where(
-            VendorBankAccount.organization_id == invoice.organization_id,
-            VendorBankAccount.vendor_id == vendor.id,
-        )
-    ) is not None
-
-    if invoice.remittance_account_fingerprint:
-        approved = find_approved_account_by_fingerprint(
-            db,
-            org_id=invoice.organization_id,
-            fingerprint=invoice.remittance_account_fingerprint,
-        )
-        if approved is None:
-            detail = (
-                "no bank accounts are on file for this vendor"
-                if not has_accounts
-                else "no APPROVED bank account matches the printed pay-to details"
-            )
-            signals.append(
-                _Signal(
-                    SignalType.BANK_ACCOUNT_UNVERIFIED,
-                    "high",  # floor — may not be downgraded
-                    f"The remittance account is unverified: {detail}. New bank "
-                    "accounts require independent human verification.",
-                    field_refs=("remittance_account_raw",),
-                )
-            )
-    else:
-        signals.append(
-            _Signal(
-                SignalType.MISSING_EVIDENCE,
-                "medium",
-                "The invoice carries no printed pay-to bank details; the "
-                "record may simply not exist in VeriPay.",
-                field_refs=("remittance_account_raw",),
-            )
-        )
-
-    # --- R3: provenance gate ------------------------------------------------
-    sources = invoice.field_sources or {}
-    unverified_fields: list[str] = []
-    conflicts: list[str] = []
-    for column, meta in sources.items():
-        origin = meta.get("origin")
-        if origin == "manual":
-            continue
-        confidence = meta.get("confidence")
-        if origin == "extracted" and (confidence is None or confidence < threshold):
-            unverified_fields.append(column)
-        if origin == "extracted" and meta.get("extracted_value") is not None:
-            current = getattr(invoice, column, None)
-            if current is not None and str(current) != str(meta["extracted_value"]):
-                conflicts.append(column)
-    if unverified_fields:
-        signals.append(
-            _Signal(
-                SignalType.UNVERIFIED_INPUT,
-                "low",
-                "Machine-extracted values below the confidence gate were "
-                "excluded from strong evidence: " + ", ".join(unverified_fields),
-                field_refs=tuple(unverified_fields),
-            )
-        )
-    for column in conflicts:
-        signals.append(
-            _Signal(
-                SignalType.FIELD_PROVENANCE_CONFLICT,
-                "medium",
-                f"The invoice column '{column}' disagrees with its extracted "
-                "provenance value; the column value is authoritative.",
-                field_refs=(column,),
-            )
-        )
-
-    # --- duplicates ---------------------------------------------------------
-    if vendor is not None:
-        others = db.scalars(
-            select(Invoice).where(
-                Invoice.organization_id == invoice.organization_id,
-                Invoice.vendor_id == vendor.id,
-                Invoice.invoice_number == invoice.invoice_number,
-                Invoice.id != invoice.id,
-            )
-        ).all()
-        for other in others:
-            record_duplicate_number_match(db, source=invoice, target=other, module="fraud")
-            signals.append(
-                _Signal(
-                    SignalType.DUPLICATE_CANDIDATE,
-                    "medium",
-                    "Another invoice with the same vendor and number already "
-                    "exists — possible duplicate or re-billing with altered "
-                    "amounts; a human must disposition it.",
-                    evidence_refs=(str(other.id),),
-                )
-            )
-
-    return signals
-
-
-def _level_from(signals: list[_Signal]) -> str:
-    worst = max(
-        (_SEVERITY_ORDER.get(s.severity, 0) for s in signals), default=0
-    )
-    # rules-v0.1 never emits critical (docs/ARCHITECTURE §8.6 note).
-    return {0: RiskLevel.NONE.value, 1: RiskLevel.LOW.value, 2: RiskLevel.MEDIUM.value, 3: RiskLevel.HIGH.value}[worst]
-
-
-def _score_from(signals: list[_Signal]) -> float:
-    weights = {"low": 15.0, "medium": 35.0, "high": 70.0}
-    return float(min(100.0, sum(weights.get(s.severity, 0.0) for s in signals)))
-
-
-def _feature_snapshot(invoice: Invoice) -> dict:
+def _feature_snapshot(invoice: Invoice, result) -> dict:
+    """The input values + per-feature raw observations at assessment time
+    (the feature half of the provenance contract; ``evc`` carries weights and
+    contributions)."""
     return {
         "invoice_id": str(invoice.id),
         "vendor_id": str(invoice.vendor_id) if invoice.vendor_id else None,
         "purchase_order_id": (
             str(invoice.purchase_order_id) if invoice.purchase_order_id else None
         ),
-        "total_amount": str(invoice.total_amount) if invoice.total_amount is not None else None,
+        "total_amount": (
+            str(invoice.total_amount) if invoice.total_amount is not None else None
+        ),
         "currency": invoice.currency,
+        "invoice_date": invoice.invoice_date.isoformat() if invoice.invoice_date else None,
         "remittance_fingerprint_present": invoice.remittance_account_fingerprint is not None,
-        "model_version": MODEL_VERSION,
+        "source_document_id": (
+            str(invoice.source_document_id) if invoice.source_document_id else None
+        ),
+        "policy_version": result.policy_version,
+        "weights": dict(result.weights),
+        "features": {
+            f.key: {"state": f.state, "observations": f.observations}
+            for f in result.features
+        },
     }
-
-
-def _explain(invoice: Invoice, signals: list[_Signal]) -> list[str]:
-    """Ordered human-readable reasons — the explainable deliverable."""
-    if not signals:
-        return [
-            "No fraud signals were produced by the current rule set. This is "
-            "NOT a statement that the invoice is genuine."
-        ]
-    ordered = sorted(
-        signals, key=lambda s: -_SEVERITY_ORDER.get(s.severity, 0)
-    )
-    lines = [
-        f"[{s.severity}] {s.signal_type.value}: {s.message}" for s in ordered
-    ]
-    lines.append(
-        "VeriPay provides risk signals only; it never authorizes payments "
-        "and never certifies an invoice as genuine."
-    )
-    return lines

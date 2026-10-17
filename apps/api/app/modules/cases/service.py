@@ -154,12 +154,11 @@ def list_cases(
         InvestigationCase.organization_id == org_id
     )
     total = len(db.scalars(base).all())
-    rows = (
-        db.scalars(base.order_by(InvestigationCase.created_at.desc()))
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    # offset/limit belong on the SELECT — chaining them on ScalarResult raises
+    # (this 500'd the case list whenever any case existed).
+    rows = db.scalars(
+        base.order_by(InvestigationCase.created_at.desc()).offset(offset).limit(limit)
+    ).all()
     return list(rows), total
 
 
@@ -240,6 +239,34 @@ def add_review_action(
     )
     db.add(row)
     db.commit()
+    return row
+
+
+def record_override_action(
+    db: Session, *, org_id: object, actor: User | None, body: str,
+    payload: dict | None = None, case_id: object | None = None,
+    action_type: str = ReviewActionType.DECISION.value,
+) -> ReviewAction:
+    """One human override record (finding disposition / match review).
+
+    ``case_id`` optional: given, it is org-scoped and validated; absent (no
+    case context exists), the action is still written with a NULL case and
+    its payload names the exact entity overridden. Used by the fraud
+    module's disposition flow (EVC v1 mandatory-reason overrides)."""
+    if action_type not in {t.value for t in ReviewActionType}:
+        raise AppError(ErrorCode.VALIDATION_ERROR, "Unknown review action type.")
+    if case_id is not None:
+        get_case(db, org_id=org_id, case_id=case_id)  # org-scoped 404 guard
+    row = ReviewAction(
+        organization_id=org_id,
+        case_id=case_id,
+        actor_user_id=actor.id if actor else None,
+        action_type=action_type,
+        body=body,
+        payload=payload,
+    )
+    db.add(row)
+    db.flush()
     return row
 
 

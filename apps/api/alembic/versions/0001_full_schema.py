@@ -265,6 +265,8 @@ def upgrade() -> None:
     sa.Column('document_id', sa.Uuid(), nullable=False),
     sa.Column('extraction_version', sa.String(length=32), nullable=False),
     sa.Column('ocr_provider', sa.String(length=64), nullable=True),
+    sa.Column('provider_meta', sa.JSON(), nullable=True),
+    sa.Column('validation_summary', sa.JSON(), nullable=True),
     sa.Column('status', sa.String(length=32), nullable=False),
     sa.Column('error', sa.Text(), nullable=True),
     sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
