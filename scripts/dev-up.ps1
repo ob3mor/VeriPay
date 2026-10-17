@@ -1,5 +1,6 @@
-# VeriPay — start the local compose stack (PROFILE A: postgres, minio, api).
-# Requires Docker. The web app does NOT run in compose: cd apps/web; npm run dev.
+# VeriPay — start the local compose stack (PROFILE A: postgres, minio, api, web).
+# Requires Docker. The web app runs IN compose as a Next.js dev server; the
+# production target remains the static export on Azure Static Web Apps.
 
 $ErrorActionPreference = "Stop"
 $composeFile = Join-Path $PSScriptRoot "..\infrastructure\local\docker-compose.yml"
@@ -15,6 +16,7 @@ Write-Host "  PostgreSQL: localhost:5432  (veripay / veripay_dev)"
 Write-Host ""
 Write-Host "Next steps:"
 Write-Host "  1. Copy .env.example to .env if you have not yet."
-Write-Host "  2. Web (on the host, not compose): cd apps/web; npm run dev  ->  http://localhost:3000"
-Write-Host "  3. Optional worker profile: docker compose -f infrastructure/local/docker-compose.yml --profile worker up -d"
-Write-Host "  4. Stop everything: ./scripts/dev-down.ps1"
+Write-Host "  2. Web (in compose): http://localhost:3000 — or on the host: cd apps/web; npm run dev"
+Write-Host "  3. Demo data: apps\api\.venv\Scripts\python.exe scripts\seed_demo.py"
+Write-Host "  4. Optional worker profile: docker compose -f infrastructure/local/docker-compose.yml --profile worker up -d"
+Write-Host "  5. Stop everything: ./scripts/dev-down.ps1"

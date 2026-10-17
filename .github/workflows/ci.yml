@@ -1,40 +1,95 @@
 name: CI
 
-# Free tier: GitHub Actions on a public repo. Runs the same gates the local
-# pipeline runs — the backend pytest suite (SQLite) and the frontend static
-# build — plus the contracts typecheck and the compose YAML syntax check
-# (Docker itself is not required for a syntax check).
+# Free tier: GitHub Actions on a public repo. Gates:
+#   backend-tests         — the full pytest suite TWICE: once on the SQLite
+#                           dev/test fallback (conftest default, file-backed
+#                           WAL) and once against a real PostgreSQL 16 service
+#                           container, with a LIVE `alembic upgrade head`
+#                           (+ downgrade base → upgrade head → `alembic check`)
+#                           on that PG instance first — the DATABASE.md §17
+#                           release gate. conftest.py honors a preset
+#                           VERIPAY_DATABASE_URL (setdefault), so the PG leg
+#                           really runs on PostgreSQL.
+#   frontend-build        — `next build` with output: 'export' (ADR 0004).
+#   contracts-typecheck   — @veripay/api-contracts TypeScript project.
+#   compose-yaml-validate — YAML SYNTAX only (yaml.safe_load). This is
+#                           explicitly NOT a `docker compose config`
+#                           substitute; the compose stack itself has never been
+#                           executed (docs/ARCHITECTURE.md §6 honesty note).
+#
+# Secrets: none committed and none required. Every credential below is a
+# throwaway dev value that exists only inside the job (mirrored from
+# infrastructure/local/docker-compose.yml).
+#
+# OIDC-ready structure (for the FUTURE deployment workflow — intentionally
+# UNWRITTEN until the owner approves Phase 06): when it is written, it should
+# authenticate with `azure/login@v2` using `auth-type: OIDC` against a federated
+# credential, request `permissions: { id-token: write, contents: read }`, and
+# store no static secrets. This workflow already runs least-privilege
+# (`permissions: contents: read`) so it composes cleanly with that job.
 
 on:
   push:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  backend:
+  backend-tests:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/api
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Throwaway job-scoped credentials (same as the local compose stack).
+          POSTGRES_USER: veripay
+          POSTGRES_PASSWORD: veripay_dev
+          POSTGRES_DB: veripay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U veripay -d veripay"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # Consumed only by the PostgreSQL leg below. VERIPAY_DATABASE_URL is
+      # deliberately NOT set globally: leg 1 must use conftest's file-backed
+      # SQLite default (the in-memory sqlite:// variant hit "database table is
+      # locked" — see apps/api/tests/conftest.py).
+      VERIPAY_PG_URL: postgresql+psycopg://veripay:veripay_dev@localhost:5432/veripay
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-      - name: Install
+      - name: Install (package + dev tools)
         run: pip install -e .[dev]
-      - name: Migrations — offline SQL + scratch-SQLite executability + drift
+      - name: Migrations — scratch-SQLite executability + downgrade + drift
         run: |
           VERIPAY_DATABASE_URL=sqlite:///./_ci_migrate.db python -m alembic upgrade head
           VERIPAY_DATABASE_URL=sqlite:///./_ci_migrate.db python -m alembic downgrade base
           VERIPAY_DATABASE_URL=sqlite:///./_ci_migrate.db python -m alembic upgrade head
           VERIPAY_DATABASE_URL=sqlite:///./_ci_migrate.db python -m alembic check
           rm -f _ci_migrate.db
-      - name: Tests
+      - name: "Tests — leg 1: SQLite (dev/test fallback, conftest default)"
         run: python -m pytest tests -q
+      - name: "Live migration on PostgreSQL 16 (upgrade → downgrade → upgrade → check)"
+        run: |
+          VERIPAY_DATABASE_URL="$VERIPAY_PG_URL" python -m alembic upgrade head
+          VERIPAY_DATABASE_URL="$VERIPAY_PG_URL" python -m alembic downgrade base
+          VERIPAY_DATABASE_URL="$VERIPAY_PG_URL" python -m alembic upgrade head
+          VERIPAY_DATABASE_URL="$VERIPAY_PG_URL" python -m alembic check
+      - name: "Tests — leg 2: PostgreSQL 16 (service container)"
+        run: VERIPAY_DATABASE_URL="$VERIPAY_PG_URL" python -m pytest tests -q
 
-  frontend:
+  frontend-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,17 +97,34 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Install (workspaces)
+      - name: Install (npm workspaces)
         run: npm ci
-      - name: Contracts typecheck
-        run: npm run typecheck:contracts
-      - name: Frontend static-export build
+      - name: "Frontend static-export build (next.config.ts output: 'export')"
         run: node apps/web/node_modules/next/dist/bin/next build apps/web
 
-  compose-syntax:
+  contracts-typecheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: YAML syntax check (not a `docker compose config` substitute)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install (npm workspaces)
+        run: npm ci
+      - name: Contracts typecheck
+        run: npm run typecheck:contracts
+
+  compose-yaml-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: YAML syntax check — compose + this workflow (NOT a compose-config substitute)
         run: |
-          python -c "import yaml,sys; yaml.safe_load(open('infrastructure/local/docker-compose.yml', encoding='utf-8')); print('compose YAML OK')"
+          python -c "import yaml; yaml.safe_load(open('infrastructure/local/docker-compose.yml', encoding='utf-8')); print('compose YAML OK')"
+          python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml', encoding='utf-8')); print('workflow YAML OK')"

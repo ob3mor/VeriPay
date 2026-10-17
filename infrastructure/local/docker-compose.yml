@@ -4,11 +4,23 @@
 # HONESTY NOTE: Docker is not installed and WSL is unavailable on the machine
 # that authored this file, so this stack has NEVER been executed. Validate with
 # `docker compose -f infrastructure/local/docker-compose.yml config` before the
-# first real run (CI / any Docker-equipped machine).
+# first real run (CI / any Docker-equipped machine). CI runs a YAML SYNTAX
+# check only (job compose-yaml-validate) — that is explicitly NOT a substitute
+# for the compose config check.
 #
-# The web app runs IN compose as a dev server (apps/web/Dockerfile) so
-# `docker compose up` gives the whole demo; the production target for the
-# frontend remains the static export on Azure Static Web Apps (PROFILE B).
+# Default `docker compose up` gives the whole demo:
+#   postgres + minio (+ bucket init) + api (migrates, then serves) + web
+#   (Next.js dev server — a dev convenience; the production frontend target
+#   remains the static export on Azure Static Web Apps, PROFILE B).
+# Optional background worker (celery over redis, opt-in):
+#   docker compose -f infrastructure/local/docker-compose.yml --profile worker up -d
+#   To route processing through it, also set VERIPAY_PROCESSING_BACKEND=celery
+#   for the api service (e.g. in .env — the api reads
+#   ${VERIPAY_PROCESSING_BACKEND:-inline} below). The worker runs the SAME
+#   image as api (veripay-local-api), with the celery extra baked in.
+#
+# Demo data (5 fictional vendors, invoices, one open case):
+#   apps\api\.venv\Scripts\python.exe scripts\seed_demo.py  (after the api is up)
 # =============================================================================
 
 name: veripay-local
@@ -71,11 +83,15 @@ services:
     restart: "no"
 
   # --- FastAPI backend (modular monolith) ---
-  # apps/api/Dockerfile migrates (alembic upgrade head) then serves uvicorn.
+  # apps/api/Dockerfile: multi-stage, non-root; its ENTRYPOINT runs
+  # `alembic upgrade head` before every start (fresh DBs come up migrated),
+  # then serves uvicorn. Healthcheck: GET /api/v1/health.
   api:
     build:
       context: ../../apps/api # relative to this file -> <repo>/apps/api
       dockerfile: Dockerfile
+    # Explicit tag so the worker profile below reuses THIS exact image.
+    image: veripay-local-api:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,33 +105,52 @@ services:
       VERIPAY_DATABASE_URL: postgresql+psycopg://veripay:veripay_dev@postgres:5432/veripay
       VERIPAY_JWT_SECRET: dev-only-insecure-secret-change-me
       VERIPAY_STORAGE_BACKEND: minio
+      # "stub" keeps the demo deterministic (the app default is "text_layer",
+      # which reads real PDF text); flip it here or in .env to try others.
       VERIPAY_OCR_PROVIDER: stub
-      VERIPAY_PROCESSING_BACKEND: inline
-      VERIPAY_MINIO_ENDPOINT: http://minio:9000
-      VERIPAY_MINIO_ACCESS_KEY: veripay
-      VERIPAY_MINIO_SECRET_KEY: veripay-dev-change-me
-      VERIPAY_MINIO_BUCKET: veripay-documents
-      VERIPAY_MINIO_SECURE: "false"
+      # inline by default; set VERIPAY_PROCESSING_BACKEND=celery in .env to
+      # route jobs to the worker profile.
+      VERIPAY_PROCESSING_BACKEND: ${VERIPAY_PROCESSING_BACKEND:-inline}
+      VERIPAY_REDIS_URL: ${VERIPAY_REDIS_URL:-redis://redis:6379/0}
+      # Settings names MUST match app/core/config.py (storage_s3_* fields ->
+      # VERIPAY_STORAGE_S3_*). An earlier draft used VERIPAY_MINIO_* here,
+      # which pydantic-settings silently ignored (extra="ignore").
+      VERIPAY_STORAGE_S3_ENDPOINT_URL: http://minio:9000
+      VERIPAY_STORAGE_S3_ACCESS_KEY_ID: veripay
+      VERIPAY_STORAGE_S3_SECRET_ACCESS_KEY: veripay-dev-change-me
+      VERIPAY_STORAGE_S3_BUCKET: veripay-documents
       # The browser reaches the API through the published host port.
       VERIPAY_CORS_ORIGINS: http://localhost:3000
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)\""]
+      # The image ships no curl/wget — use the Python stdlib client.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 20s
+      start_period: 30s
 
-  # --- Next.js web app (dev server; the static export is for Azure SWA) ---
+  # --- Next.js web app (dev convenience on node:20-alpine) ---
+  # Bind-mounts the repo, installs npm workspaces, then runs `next dev`
+  # bound to 0.0.0.0 so the browser reaches it on the published port. First
+  # start downloads dependencies (slow); anonymous volumes keep the Linux
+  # node_modules trees OUT of the host checkout (Next's SWC binaries are
+  # platform-specific — mounting over the host's would break host builds).
+  # Production target for the frontend remains the static export (PROFILE B).
   web:
-    build:
-      # Repo-root context so the npm workspace (contracts package) resolves.
-      context: ../..
-      dockerfile: apps/web/Dockerfile
+    image: node:20-alpine
+    working_dir: /repo
+    volumes:
+      - ../..:/repo
+      - web-node-modules:/repo/node_modules
+      - web-node-modules-app:/repo/apps/web/node_modules
+    command: sh -c "npm ci --no-audit --no-fund && cd apps/web && npx next dev -H 0.0.0.0"
     environment:
       # Browser-facing API base: the host-published API port.
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+      # File watching over a Windows bind mount needs polling.
+      WATCHPACK_POLLING: "true"
     ports:
       - "3000:3000"
     depends_on:
@@ -123,25 +158,33 @@ services:
         condition: service_healthy
 
   # --- Optional Celery worker (only with --profile worker) ---
+  # SAME image as api (veripay-local-api, celery extra baked in). The shared
+  # entrypoint re-runs the idempotent `alembic upgrade head` as a start
+  # barrier (no-op here — api already migrated), then execs the worker.
   # The default processing backend is "inline" (no worker needed — this is
-  # what keeps the Azure demo scale-to-zero). Start with:
-  #   docker compose -f infrastructure/local/docker-compose.yml --profile worker up -d
+  # what keeps the Azure demo scale-to-zero).
   worker:
     image: veripay-local-api:latest
-    build:
-      context: ../../apps/api
-      dockerfile: Dockerfile
     profiles: ["worker"]
-    command: sh -c "pip install --no-cache-dir '.[celery]' && celery -A app.adapters.processing.celery_backend.celery_app worker --loglevel=info"
+    command: ["celery", "-A", "app.adapters.processing.celery_backend.celery_app", "worker", "--loglevel=info"]
     environment:
+      # Same database, storage, and OCR settings as api — the worker executes
+      # extraction against the same documents.
       VERIPAY_DATABASE_URL: postgresql+psycopg://veripay:veripay_dev@postgres:5432/veripay
       VERIPAY_JWT_SECRET: dev-only-insecure-secret-change-me
       VERIPAY_REDIS_URL: redis://redis:6379/0
       VERIPAY_OCR_PROVIDER: stub
+      VERIPAY_STORAGE_BACKEND: minio
+      VERIPAY_STORAGE_S3_ENDPOINT_URL: http://minio:9000
+      VERIPAY_STORAGE_S3_ACCESS_KEY_ID: veripay
+      VERIPAY_STORAGE_S3_SECRET_ACCESS_KEY: veripay-dev-change-me
+      VERIPAY_STORAGE_S3_BUCKET: veripay-documents
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      api:
         condition: service_healthy
 
   # --- Redis: optional, only for background-worker work (opt-in profile) ---
@@ -160,3 +203,5 @@ services:
 volumes:
   postgres-data:
   minio-data:
+  web-node-modules:
+  web-node-modules-app:

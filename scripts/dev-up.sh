@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# VeriPay — start the local compose stack (PROFILE A: postgres, minio, api).
-# Requires Docker. The web app does NOT run in compose: cd apps/web && npm run dev.
+# VeriPay — start the local compose stack (PROFILE A: postgres, minio, api, web).
+# Requires Docker. The web app runs IN compose as a Next.js dev server; the
+# production target remains the static export on Azure Static Web Apps.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,8 +18,9 @@ VeriPay local stack is up.
 
 Next steps:
   1. Copy .env.example to .env if you have not yet.
-  2. Web (on the host, not compose): cd apps/web && npm run dev  ->  http://localhost:3000
-  3. Optional worker profile:
+  2. Web (in compose): http://localhost:3000 — or on the host: cd apps/web && npm run dev
+  3. Demo data: apps/api/.venv/Scripts/python.exe scripts/seed_demo.py
+  4. Optional worker profile:
      docker compose -f infrastructure/local/docker-compose.yml --profile worker up -d
-  4. Stop everything: ./scripts/dev-down.sh
+  5. Stop everything: ./scripts/dev-down.sh
 EOF
