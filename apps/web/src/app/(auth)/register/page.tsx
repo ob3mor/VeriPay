@@ -21,11 +21,12 @@ import { setAccessToken } from "@/lib/auth";
 
 /**
  * Registration — controlled form calling the REAL API (POST /api/v1/auth/register,
- * docs/API.md §4). Creates a NEW organization and its first user (role owner);
- * joining an existing org arrives later with invites. On 201 the JWT is stored
- * under the documented key `veripay:access_token` and the user lands on
- * /dashboard. Server validation (422 details) is mapped to per-field errors;
- * anything else degrades to an inline message — never a crash.
+ * docs/API.md §4). Creates a NEW organization and its first user (role
+ * org_admin); joining an existing org arrives later with invites. On 201 the
+ * server sets the httpOnly session cookie and the short-lived Bearer token is
+ * kept in memory only; the user lands on /dashboard. Server validation (422
+ * details) is mapped to per-field errors; anything else degrades to an inline
+ * message — never a crash.
  */
 export default function RegisterPage() {
   const router = useRouter();

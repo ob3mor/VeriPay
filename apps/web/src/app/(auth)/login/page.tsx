@@ -21,10 +21,11 @@ import { setAccessToken } from "@/lib/auth";
 
 /**
  * Sign-in — controlled form calling the REAL API (POST /api/v1/auth/login,
- * OAuth2 password form per docs/API.md §4). On success the JWT is stored in
- * localStorage under the documented key `veripay:access_token` (src/lib/auth.ts)
- * and the user is redirected to /dashboard. API failures degrade to an inline
- * message — the page never crashes when the backend is offline.
+ * OAuth2 password form per docs/API.md §4). On success the server sets the
+ * httpOnly session cookie (the durable session) and returns a short-lived
+ * Bearer token that is kept IN MEMORY ONLY (src/lib/auth.ts — never
+ * localStorage); the user is redirected to /dashboard. API failures degrade
+ * to an inline message — the page never crashes when the backend is offline.
  */
 export default function LoginPage() {
   const router = useRouter();

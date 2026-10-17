@@ -10,8 +10,12 @@ import { clearAccessToken } from "@/lib/auth";
  * GET /auth/me via TanStack Query (docs/API.md §4). One request per app —
  * the dashboard shell and the Overview page share the ["auth", "me"] cache.
  *
+ * The session cookie authenticates this call (credentials: "include") — a
+ * fresh page load needs no stored token. 401s are transparently refreshed by
+ * lib/api.ts before they ever reach this query.
+ *
  * Retry policy: one quick retry for network errors, never for 401 (an expired
- * token will not fix itself) and never for other API errors.
+ * session will not fix itself) and never for other API errors.
  */
 export function useMe(options?: { enabled?: boolean }) {
   return useQuery({
@@ -24,21 +28,17 @@ export function useMe(options?: { enabled?: boolean }) {
 }
 
 /**
- * Clear the session (documented key: veripay:access_token) and its cache.
+ * Clear the session and its cache.
  *
- * The token is ALSO revoked server-side (POST /auth/logout) so a signed-out
- * bearer token is rejected by the API — clearing localStorage alone would
- * leave a leaked/copied token valid until its JWT expiry. Best-effort and
- * synchronous about capturing the token: the local session is cleared even
- * when the API is unreachable.
+ * POST /auth/logout revokes the durable session row server-side and clears
+ * both cookies; the in-memory access token dies here too. Best-effort: the
+ * local session is cleared even when the API is unreachable.
  */
 export function useSignOut() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
   return useCallback(() => {
-    // logoutRequest reads the token synchronously before any await, so this
-    // is safe to fire before clearAccessToken(); failures are ignored.
     void logoutRequest().catch(() => undefined);
     clearAccessToken();
     // Drop cached /auth/me etc. so nothing leaks into the next session.

@@ -1,42 +1,61 @@
 /**
- * Phase 1 session-token storage.
+ * Session store for the VeriPay SPA.
  *
- * The JWT returned by POST /api/v1/auth/login|register is kept in localStorage
- * under the documented key below and attached as `Authorization: Bearer <jwt>`
- * to every request by src/lib/api.ts (docs/API.md §1).
+ * Owner's hard rules (Phase 2):
+ * - "Never store long-lived sensitive authentication tokens in browser
+ *   localStorage." The short-lived Bearer access token therefore lives in a
+ *   MODULE-SCOPED variable only — it dies with the page and survives nowhere.
+ *   The durable session is the httpOnly `veripay_session` cookie, which JS
+ *   cannot read at all (XSS cannot exfiltrate it).
+ * - The readable `veripay_csrf` cookie is echoed in the X-CSRF-Token header on
+ *   mutating requests by src/lib/api.ts (CSRF double-submit; the backend
+ *   enforces it).
  *
- * Documented key: `veripay:access_token` (also in apps/web/README.md).
+ * On a fresh page load the SPA needs NO stored token: GET /auth/me
+ * authenticates through the session cookie alone (credentials: "include").
+ * 401s are transparently refreshed against POST /auth/refresh by api.ts.
  *
- * Known tradeoff: localStorage is readable by any script running on the origin
- * (XSS exposure). This is a deliberate Phase 1 simplification; docs/API.md §4
- * reserves POST /api/v1/auth/refresh (httpOnly cookie) as the Phase 2 upgrade
- * path, at which point this module shrinks to a thin wrapper around the
- * session cookie. Mitigations shipped in the meantime:
- * - POST /api/v1/auth/logout revokes the presented token server-side
- *   (use-session.ts fires it on sign-out), so a stolen token dies at logout
- *   instead of living out its full 8-hour JWT expiry;
- * - apps/web/public/staticwebapp.config.json serves a CSP and hardening
- *   headers on Azure Static Web Apps (default-src 'self' blocks third-party
- *   script origins; inline script stays allowed because the static export
- *   cannot inject per-response nonces).
- *
- * All helpers guard on `window`: the static export prerenders every page in
- * Node at build time, where localStorage does not exist.
+ * All helpers guard on `typeof window`: the static export prerenders pages in
+ * Node at build time, where neither memory-persistence nor cookies matter.
  */
 
-export const ACCESS_TOKEN_STORAGE_KEY = "veripay:access_token";
+const CSRF_COOKIE_NAME = "veripay_csrf";
 
-export function getAccessToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
-}
+/** Module-scoped, memory-only access token (short-lived, 30 minutes). */
+let accessToken: string | null = null;
 
+/** Store the access token returned by login/register/refresh — memory only. */
 export function setAccessToken(token: string): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
+  accessToken = token;
 }
 
+/** Current in-memory access token, or null after a fresh page load. */
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
+/** Drop the in-memory token (logout, failed refresh). */
 export function clearAccessToken(): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  accessToken = null;
+}
+
+/** Read the CSRF cookie (not httpOnly by design — that is the double submit). */
+export function getCsrfToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const match = document.cookie
+    .split("; ")
+    .find((cookie) => cookie.startsWith(`${CSRF_COOKIE_NAME}=`));
+  return match ? decodeURIComponent(match.slice(CSRF_COOKIE_NAME.length + 1)) : null;
+}
+
+/** Canonical role → display label (the owner's four roles). */
+export const ROLE_LABELS: Record<string, string> = {
+  org_admin: "Organization Admin",
+  finance_officer: "Finance Officer",
+  reviewer: "Reviewer",
+  auditor: "Auditor",
+};
+
+export function roleLabel(role: string): string {
+  return ROLE_LABELS[role] ?? role;
 }

@@ -20,11 +20,12 @@ import type {
   ApiErrorResponse,
   LogoutResponse,
   MeResponse,
+  RefreshResponse,
   RegisterRequest,
   RegisterResponse,
   TokenResponse,
 } from "@veripay/api-contracts";
-import { getAccessToken } from "./auth";
+import { clearAccessToken, getAccessToken, getCsrfToken, setAccessToken as setAccessTokenInternal } from "./auth";
 
 /** Used when NEXT_PUBLIC_API_BASE_URL is not set at build time. */
 export const DEFAULT_API_BASE_URL = "http://localhost:8000";
@@ -70,7 +71,9 @@ export class ApiNetworkError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+async function performFetch<T>(path: string, init?: RequestInit): Promise<Response> {
   const url = `${getApiRoot()}${path.startsWith("/") ? path : `/${path}`}`;
 
   const headers = new Headers(init?.headers);
@@ -79,15 +82,26 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
+  // CSRF double-submit: mutating requests authenticated by the session cookie
+  // must echo the readable csrf cookie (Bearer requests are exempt — the
+  // backend enforces the rule, the client just always complies).
+  const method = (init?.method ?? "GET").toUpperCase();
+  if (MUTATING_METHODS.has(method) && !headers.has("X-CSRF-Token")) {
+    const csrf = getCsrfToken();
+    if (csrf) headers.set("X-CSRF-Token", csrf);
+  }
 
-  let response: Response;
   try {
-    response = await fetch(url, { ...init, headers });
+    // credentials: the httpOnly session cookie IS the durable session — it
+    // must travel on every call, same-origin locally and via the SWA proxy.
+    return await fetch(url, { ...init, headers, credentials: "include" });
   } catch (cause) {
     // fetch only rejects on network-level failures — the API is unreachable.
     throw new ApiNetworkError({ cause });
   }
+}
 
+async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
   let parsed: unknown;
   if (text.length > 0) {
@@ -127,6 +141,26 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     });
   }
   return parsed as T;
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await performFetch<T>(path, init);
+  if (response.status === 401 && getAccessToken() && !path.startsWith("/auth/")) {
+    // The in-memory Bearer token expired. One transparent refresh attempt;
+    // on success the original request is retried with the fresh token.
+    try {
+      const refreshed = await parseResponse<RefreshResponse>(
+        await performFetch("/auth/refresh", { method: "POST" })
+      );
+      setAccessTokenInternal(refreshed.access_token);
+      const retry = await performFetch<T>(path, init);
+      return await parseResponse<T>(retry);
+    } catch {
+      clearAccessToken();
+      throw await parseResponse<T>(response);
+    }
+  }
+  return await parseResponse<T>(response);
 }
 
 // ---------------------------------------------------------------------------

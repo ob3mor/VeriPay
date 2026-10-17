@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { isSessionExpired, useMe, useSignOut } from "@/hooks/use-session";
+import { roleLabel } from "@/lib/auth";
 import { ApiError, ApiNetworkError, getApiRoot } from "@/lib/api";
 import type { MeResponse } from "@veripay/api-contracts";
 
@@ -32,7 +33,7 @@ const STATS = [
 const ACCOUNT_FIELDS: readonly (readonly [string, (me: MeResponse) => string])[] = [
   ["Email", (me) => me.user.email],
   ["Full name", (me) => me.user.full_name],
-  ["Role", (me) => me.user.role],
+  ["Role", (me) => roleLabel(me.user.role)],
   ["Organization", (me) => me.organization.name],
   ["Org slug", (me) => me.organization.slug],
   ["User ID", (me) => me.user.id],

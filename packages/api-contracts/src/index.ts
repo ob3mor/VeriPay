@@ -78,10 +78,9 @@ export interface HealthOut {
 // Auth — docs/API.md §4
 // ---------------------------------------------------------------------------
 
-/** Roles stored in `users.role` — docs/DATABASE.md §5.
- *  Note: the API.md §5 role×action matrix also names a `viewer` role; reconcile
- *  against the generated types once the OpenAPI snapshot exists. */
-export type UserRole = "owner" | "admin" | "analyst" | "reviewer";
+/** Roles stored in `users.role` — the owner's four canonical roles (Phase 2).
+ *  Org creator = org_admin. Display labels live in apps/web/src/lib/auth.ts. */
+export type UserRole = "org_admin" | "finance_officer" | "reviewer" | "auditor";
 
 /** POST /api/v1/auth/register (public) — creates a new org + its first user. */
 export interface RegisterRequest {
@@ -114,11 +113,17 @@ export interface LoginRequest {
   password: string;
 }
 
-/** 200 of POST /auth/login (also the token part of register's 201). */
+/** 200 of POST /auth/login (also the token part of register's 201).
+ *  The durable session is the httpOnly cookie set alongside; this token is
+ *  short-lived (30 min) and lives in memory only (never localStorage). */
 export interface TokenResponse {
   access_token: string;
   token_type: "bearer";
 }
+
+/** 200 of POST /auth/refresh — fresh short-lived token minted from the
+ *  httpOnly session cookie (+ CSRF header). */
+export interface RefreshResponse extends TokenResponse {}
 
 /** 201 of POST /auth/register. */
 export interface RegisterResponse {
@@ -193,15 +198,16 @@ export interface Vendor {
   updated_at: string;
 }
 
-// ---------- vendor_trusted_accounts (DATABASE.md §7) ----------
-// Invariant R5: verification_status starts `pending`; only a human can set
-// `verified`, and only with a verification method + reference. There is no
-// automatic verification path (docs/ARCHITECTURE.md §8.5).
+// ---------- vendor_bank_accounts (canonical v2 vocabulary) ----------
+// Invariant R5: status starts `pending`; only a human sets `approved`, and
+// only with an independent verification method + reference. There is no
+// automatic approval path (docs/ARCHITECTURE.md §8.5) — an uploaded invoice
+// can never approve an account.
 
-export type BankAccountVerificationStatus =
+export type BankAccountStatus =
   | "pending"
-  | "verified"
-  | "failed"
+  | "approved"
+  | "rejected"
   | "revoked";
 
 export interface BankAccount {
@@ -214,8 +220,8 @@ export interface BankAccount {
   bank_country?: string | null;
   account_number_last4?: string | null;
   /** Full account numbers/IBANs are never stored — only the SHA-256 fingerprint
-   *  server-side (data minimization, DATABASE.md §7), so it is not in the API type. */
-  verification_status: BankAccountVerificationStatus;
+   *  server-side (data minimization), so it is not in the API type. */
+  status: BankAccountStatus;
   /** Marks the vendor's current on-file account (one per vendor per org). */
   is_current: boolean;
   created_at: string;

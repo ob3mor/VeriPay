@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -15,8 +15,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { useMe, useSignOut } from "@/hooks/use-session";
-import { getAccessToken } from "@/lib/auth";
+import { isSessionExpired, useMe, useSignOut } from "@/hooks/use-session";
 import { cn } from "@/lib/utils";
 
 /** Primary navigation — /dashboard itself is the Overview page. */
@@ -32,28 +31,26 @@ const NAV_ITEMS = [
  * Authenticated app shell: topbar + sidebar (desktop) with a scrollable nav
  * row on small screens.
  *
- * Auth guard: the token lives in localStorage (documented key
- * `veripay:access_token`), which does not exist during the static-export
- * prerender — so the check runs in an effect after mount, and the shell
+ * Auth guard: the durable session is the httpOnly cookie, so membership is
+ * checked by GET /auth/me (credentials: "include") — a fresh page load needs
+ * no stored token. The check resolves on the client after mount; the shell
  * renders the same neutral loading state on server and first client render
- * (no hydration mismatch, no crash without a backend).
+ * (no hydration mismatch, no crash without a backend). A 401 sends the user
+ * to /login.
  */
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [checked, setChecked] = useState(false);
   const signOut = useSignOut();
-  const me = useMe({ enabled: checked });
+  const me = useMe();
 
   useEffect(() => {
-    if (!getAccessToken()) {
+    if (me.isError && isSessionExpired(me.error)) {
       router.replace("/login");
-    } else {
-      setChecked(true);
     }
-  }, [router]);
+  }, [me.isError, me.error, router]);
 
-  if (!checked) {
+  if (me.isPending || me.isError) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <LoaderCircle className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
