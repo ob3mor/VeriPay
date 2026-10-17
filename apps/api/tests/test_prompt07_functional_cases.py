@@ -1,4 +1,4 @@
-"""Prompt-07 QA — the 10 functional cases from the brief.
+﻿"""Prompt-07 QA — the 10 functional cases from the brief.
 
 1.  normal invoice                      → clean EVC, no forcing
 2.  unauthorized bank-account change    → bank_account_unverified (high floor)
@@ -111,7 +111,7 @@ def test_case_1_normal_invoice_is_clean_and_unforced(client):
     assert body["evc"]["score"] == 0.0
     # No forcing: the invoice keeps its status and no case was opened (R6).
     assert _invoice_status(client, invoice["id"]) == "received"
-    assert client.get("/api/v1/cases").json() == []
+    assert client.get("/api/v1/cases").json()["items"] == []
     # Nothing here claims genuineness (R2).
     raw = str(body).lower()
     assert "is_genuine" not in raw and "is_fraud" not in raw
@@ -153,7 +153,7 @@ def test_case_2_unauthorized_bank_account_change_forces_review(client):
     assert len(rows) == 1  # the original account only
     assert rows[0][1] == "approved"
     # A single high discrepancy is NOT critical — no auto-case (R6 needs two).
-    assert client.get("/api/v1/cases").json() == []
+    assert client.get("/api/v1/cases").json()["items"] == []
 
 
 # ------------------------------------------- 3. duplicate submission --------
@@ -212,7 +212,7 @@ def test_case_4_unknown_vendor_is_capped_medium_never_fraud(client):
     assert body["evc"]["result_state"] == "review_required"
     assert body["risk_level"] == "medium"
     assert _invoice_status(client, invoice["id"]) == "needs_review"
-    assert client.get("/api/v1/cases").json() == []  # medium — no auto-case
+    assert client.get("/api/v1/cases").json()["items"] == []  # medium — no auto-case
 
 
 # ---------------------------------------------------- 5. PO mismatch --------
@@ -309,7 +309,7 @@ def test_case_6_unreadable_critical_ocr_field_never_becomes_a_mismatch(client):
     assert body["risk_level"] in ("low", "medium")
     assert _invoice_status(client, invoice["id"]) == "needs_review"
     # The uncertain field stays machine-unverified in the API surface.
-    fields = client.get(f"/api/v1/documents/{document_id}/fields").json()
+    fields = client.get(f"/api/v1/documents/{document_id}/fields").json()["items"]
     uncertain = [f for f in fields if f["field_name"] == "total_amount"
                  and f["confidence"] == 0.3]
     assert uncertain and uncertain[0]["verification_status"] == "unverified"
@@ -366,10 +366,10 @@ def test_case_7_multi_org_isolation(client):
     )
     # Org B's lists never contain org A rows.
     assert foreign_ids["invoice"] not in [
-        i["id"] for i in client.get("/api/v1/invoices").json()
+        i["id"] for i in client.get("/api/v1/invoices").json()["items"]
     ]
     assert foreign_ids["vendor"] not in [
-        v["id"] for v in client.get("/api/v1/vendors").json()
+        v["id"] for v in client.get("/api/v1/vendors").json()["items"]
     ]
     # Org B works in complete isolation: same names, independent records.
     vendor_b = client.post(
@@ -383,7 +383,7 @@ def test_case_7_multi_org_isolation(client):
     client.cookies.clear()
     assert login(client, username="orga@acme.example").status_code == 200
     assert client.get(f"/api/v1/invoices/{invoice_a['id']}").status_code == 200
-    assert vendor_b["id"] not in [v["id"] for v in client.get("/api/v1/vendors").json()]
+    assert vendor_b["id"] not in [v["id"] for v in client.get("/api/v1/vendors").json()["items"]]
 
 
 # ----------------- 8. unauthorized account-change approval (R5 matrix) ------
@@ -441,7 +441,7 @@ def test_case_8_finance_officer_cannot_approve_account_change(client):
     assert login(client, username="case-owner@acme.example").status_code == 200
     still = client.get(
         f"/api/v1/vendors/{vendor_id}/change-requests"
-    ).json()
+    ).json()["items"]
     assert [c["status"] for c in still if c["id"] == change_id] == ["pending"]
 
     # A reviewer (independent human, different from the requester) approves.
@@ -482,7 +482,7 @@ def test_case_8_finance_officer_cannot_approve_account_change(client):
     # And the deciding note is on the change request itself (API surface).
     decided = client.get(
         f"/api/v1/vendors/{vendor_id}/change-requests"
-    ).json()
+    ).json()["items"]
     mine = [c for c in decided if c["id"] == change_id]
     assert mine[0]["resolution_note"] == "Callback confirmed with the known contact."
 
@@ -546,7 +546,7 @@ def test_case_9_reviewer_resolves_case_with_justification(client):
     assert again.status_code == 422
     assert again.json()["error"]["code"] == "business_rule_violation"
 
-    actions = client.get(f"/api/v1/cases/{case_id}/actions").json()
+    actions = client.get(f"/api/v1/cases/{case_id}/actions").json()["items"]
     # The human justifications are all on the record: the investigation note,
     # the close decision, and the resolution summary on the case row itself.
     assert any(
@@ -614,42 +614,47 @@ def test_case_10_processing_failure_and_retry_leaves_no_duplicates(
     # Step 1: a misconfigured OCR provider fails the inline job loudly.
     monkeypatch.setenv("VERIPAY_OCR_PROVIDER", "typo-provider")
     get_settings.cache_clear()
-    failed = _upload()
-    assert failed.status_code == 422, failed.text
-    assert failed.json()["error"]["code"] == "business_rule_violation"
+    try:
+        failed = _upload()
+        assert failed.status_code == 422, failed.text
+        assert failed.json()["error"]["code"] == "business_rule_violation"
 
-    listing = client.get("/api/v1/documents").json()
-    assert len(listing) == 1  # the document row WAS persisted
-    document_id = listing[0]["id"]
-    assert listing[0]["processing_status"] == "failed"
+        listing = client.get("/api/v1/documents").json()["items"]
+        assert len(listing) == 1  # the document row WAS persisted
+        document_id = listing[0]["id"]
+        assert listing[0]["processing_status"] == "failed"
 
-    def _counts(session):
-        from sqlalchemy import select
+        def _counts(session):
+            from sqlalchemy import select
 
-        from app.models import Document, ExtractionResult, ProcessingJob
+            from app.models import Document, ExtractionResult, ProcessingJob
 
-        doc = session.get(Document, uuid.UUID(document_id))
-        jobs = session.scalars(
-            select(ProcessingJob).where(
-                ProcessingJob.document_id == doc.id,
-                ProcessingJob.organization_id == doc.organization_id,
-            )
-        ).all()
-        results = session.scalars(
-            select(ExtractionResult).where(
-                ExtractionResult.document_id == doc.id,
-                ExtractionResult.organization_id == doc.organization_id,
-            )
-        ).all()
-        return len(jobs), [j.status for j in jobs], [j.attempts for j in jobs], len(results)
+            doc = session.get(Document, uuid.UUID(document_id))
+            jobs = session.scalars(
+                select(ProcessingJob).where(
+                    ProcessingJob.document_id == doc.id,
+                    ProcessingJob.organization_id == doc.organization_id,
+                )
+            ).all()
+            results = session.scalars(
+                select(ExtractionResult).where(
+                    ExtractionResult.document_id == doc.id,
+                    ExtractionResult.organization_id == doc.organization_id,
+                )
+            ).all()
+            return len(jobs), [j.status for j in jobs], [j.attempts for j in jobs], len(results)
 
-    jobs, statuses, attempts, results = db_query(_counts)
-    assert jobs == 1 and results == 1
-    assert statuses == ["failed"] and attempts == [1]
+        jobs, statuses, attempts, results = db_query(_counts)
+        assert jobs == 1 and results == 1
+        assert statuses == ["failed"] and attempts == [1]
+    finally:
+        # Deterministic cleanup even if an assertion above fails: the poisoned
+        # settings cache (unknown OCR provider) otherwise OUTLIVES the env
+        # undo and breaks every later test file that uploads a document.
+        monkeypatch.undo()
+        get_settings.cache_clear()
 
     # Step 2: re-uploading the same bytes dedups — no second document.
-    monkeypatch.undo()
-    get_settings.cache_clear()
     reupload = _upload()
     assert reupload.status_code == 200, reupload.text
     assert reupload.json()["deduplicated"] is True
@@ -680,7 +685,7 @@ def test_case_10_processing_failure_and_retry_leaves_no_duplicates(
     assert statuses_after == ["completed"]
     assert attempts_after == [2]  # the retry, on the same row
     assert results_after == 1  # fields-v1 upserted in place, never duplicated
-    fields = client.get(f"/api/v1/documents/{document_id}/fields").json()
+    fields = client.get(f"/api/v1/documents/{document_id}/fields").json()["items"]
     assert {f["field_name"] for f in fields} >= {"vendor_name", "total"}
     # The extraction version is the durable single one.
     extraction = client.get(f"/api/v1/documents/{document_id}/extraction").json()

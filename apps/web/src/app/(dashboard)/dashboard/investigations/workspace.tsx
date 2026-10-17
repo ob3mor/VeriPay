@@ -115,7 +115,7 @@ export function InvestigationsWorkspace() {
 function CaseListSection({ onOpen }: { onOpen: (caseId: string) => void }) {
   const casesQuery = useQuery({
     queryKey: ["cases"],
-    queryFn: () => listCases({ limit: 100 }),
+    queryFn: async () => (await listCases({ limit: 100 })).items,
   });
 
   return (
@@ -147,7 +147,7 @@ function CaseListSection({ onOpen }: { onOpen: (caseId: string) => void }) {
 function useSourceDocument(invoice: InvoiceOut | null, docParam: string | null) {
   const documentsQuery = useQuery({
     queryKey: ["documents"],
-    queryFn: () => listDocuments({ limit: 100 }),
+    queryFn: async () => (await listDocuments({ limit: 100 })).items,
     enabled: invoice !== null,
   });
 
@@ -159,7 +159,7 @@ function useSourceDocument(invoice: InvoiceOut | null, docParam: string | null) 
   const candidateFields = useQueries({
     queries: candidateDocuments.map((doc) => ({
       queryKey: ["fields", doc.id],
-      queryFn: () => listExtractionFields(doc.id),
+      queryFn: async () => (await listExtractionFields(doc.id)).items,
       enabled: invoice !== null,
       staleTime: 60_000,
     })),

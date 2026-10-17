@@ -1,4 +1,4 @@
-"""Manual field review (Prompt-02): PATCH /api/v1/documents/{id}/fields/{field_id}.
+﻿"""Manual field review (Prompt-02): PATCH /api/v1/documents/{id}/fields/{field_id}.
 
 R3: only a human flips verification (reviewer/org_admin); the original
 extraction is preserved; corrections carry verified_by/at and an audit event.
@@ -28,7 +28,7 @@ def _upload_invoice(client, name="normal_invoice.pdf"):
 
 
 def _total_field(client, document_id):
-    fields = client.get(f"/api/v1/documents/{document_id}/fields").json()
+    fields = client.get(f"/api/v1/documents/{document_id}/fields").json()["items"]
     return next(f for f in fields if f["field_name"] == "total")
 
 
@@ -63,7 +63,7 @@ def test_extracted_fields_carry_normalized_values_and_spans(client):
     assert extraction["ocr_provider"] == "text_layer"
     assert extraction["validation_summary"]["status"] == "pass"
 
-    fields = client.get(f"/api/v1/documents/{body['id']}/fields").json()
+    fields = client.get(f"/api/v1/documents/{body['id']}/fields").json()["items"]
     total = next(f for f in fields if f["field_name"] == "total")
     assert total["normalized_value"]["value"] == "1416.10"
     assert total["evidence_spans"][0]["page"] == 1
@@ -158,12 +158,12 @@ def test_re_extraction_upserts_fields_per_version(client):
     assert register(client).status_code == 201
     body = _upload_invoice(client).json()
     document_id = body["id"]
-    first = client.get(f"/api/v1/documents/{document_id}/fields").json()
+    first = client.get(f"/api/v1/documents/{document_id}/fields").json()["items"]
 
     retry = client.post(f"/api/v1/documents/{document_id}/process")
     assert retry.status_code == 200
 
-    second = client.get(f"/api/v1/documents/{document_id}/fields").json()
+    second = client.get(f"/api/v1/documents/{document_id}/fields").json()["items"]
     # Same version → rows replaced in place: same field count, same values,
     # no duplicate field rows (uq per result+field_name holds).
     assert len(second) == len(first)

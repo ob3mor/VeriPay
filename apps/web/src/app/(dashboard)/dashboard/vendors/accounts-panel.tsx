@@ -62,7 +62,7 @@ export function AccountsPanel({ vendorId }: AccountsPanelProps) {
 
   const accountsQuery = useQuery({
     queryKey: ["accounts", vendorId],
-    queryFn: () => listBankAccounts(vendorId),
+    queryFn: async () => (await listBankAccounts(vendorId)).items,
   });
 
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -399,7 +399,7 @@ function VerifyAccountDialog({
   // statements) — the R5 verification document picker.
   const documentsQuery = useQuery({
     queryKey: ["documents"],
-    queryFn: () => listDocuments({ limit: 100 }),
+    queryFn: async () => (await listDocuments({ limit: 100 })).items,
     enabled: open,
   });
   const vendorDocuments = (documentsQuery.data ?? []).filter(

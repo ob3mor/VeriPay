@@ -105,17 +105,20 @@ def create_purchase_order(
     return _po_out(po)
 
 
-@router.get("/purchase-orders", response_model=list[ds.PurchaseOrderOut])
+@router.get("/purchase-orders", response_model=ds.PageOut[ds.PurchaseOrderOut])
 def list_purchase_orders(
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
     limit: _PageLimit = 25,
     offset: _PageOffset = 0,
-) -> list[ds.PurchaseOrderOut]:
-    rows, _t = service.list_purchase_orders(
+) -> ds.PageOut[ds.PurchaseOrderOut]:
+    rows, total = service.list_purchase_orders(
         db, org_id=actor.organization_id, limit=limit, offset=offset
     )
-    return [_po_out(po) for po in rows]
+    return ds.PageOut(
+        items=[_po_out(po) for po in rows],
+        pagination=ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )
 
 
 @router.get("/purchase-orders/{po_id}", response_model=ds.PurchaseOrderOut)
@@ -164,17 +167,20 @@ def create_invoice(
     return _invoice_out(invoice)
 
 
-@router.get("/invoices", response_model=list[ds.InvoiceOut])
+@router.get("/invoices", response_model=ds.PageOut[ds.InvoiceOut])
 def list_invoices(
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
     limit: _PageLimit = 25,
     offset: _PageOffset = 0,
-) -> list[ds.InvoiceOut]:
-    rows, _t = service.list_invoices(
+) -> ds.PageOut[ds.InvoiceOut]:
+    rows, total = service.list_invoices(
         db, org_id=actor.organization_id, limit=limit, offset=offset
     )
-    return [_invoice_out(i) for i in rows]
+    return ds.PageOut(
+        items=[_invoice_out(i) for i in rows],
+        pagination=ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )
 
 
 @router.get("/invoices/{invoice_id}", response_model=ds.InvoiceOut)
@@ -233,17 +239,23 @@ def create_line_item(
 
 
 @router.get(
-    "/invoices/{invoice_id}/line-items", response_model=list[ds.LineItemOut]
+    "/invoices/{invoice_id}/line-items",
+    response_model=ds.PageOut[ds.LineItemOut],
 )
 def list_line_items(
     invoice_id: uuid.UUID,
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
-) -> list[ds.LineItemOut]:
-    rows = service.list_line_items(
-        db, org_id=actor.organization_id, invoice_id=invoice_id
+    limit: _PageLimit = 25,
+    offset: _PageOffset = 0,
+) -> ds.PageOut[ds.LineItemOut]:
+    rows, total = service.list_line_items(
+        db, org_id=actor.organization_id, invoice_id=invoice_id, limit=limit, offset=offset
     )
-    return [_line_item_out(item) for item in rows]
+    return ds.PageOut(
+        items=[_line_item_out(item) for item in rows],
+        pagination=ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )
 
 
 @router.post("/invoices/{invoice_id}/resolve-vendor", response_model=ds.InvoiceOut)

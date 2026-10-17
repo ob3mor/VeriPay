@@ -271,15 +271,14 @@ def record_override_action(
 
 
 def list_review_actions(
-    db: Session, *, org_id: object, case_id: object
-) -> list[ReviewAction]:
-    return list(
-        db.scalars(
-            select(ReviewAction)
-            .where(
-                ReviewAction.organization_id == org_id,
-                ReviewAction.case_id == case_id,
-            )
-            .order_by(ReviewAction.created_at)
-        )
+    db: Session, *, org_id: object, case_id: object, limit: int, offset: int
+) -> tuple[list[ReviewAction], int]:
+    base = select(ReviewAction).where(
+        ReviewAction.organization_id == org_id,
+        ReviewAction.case_id == case_id,
     )
+    total = len(db.scalars(base).all())
+    rows = db.scalars(
+        base.order_by(ReviewAction.created_at).offset(offset).limit(limit)
+    ).all()
+    return list(rows), total

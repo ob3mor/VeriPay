@@ -32,7 +32,7 @@ export function ContactsPanel({ vendorId }: ContactsPanelProps) {
 
   const contactsQuery = useQuery({
     queryKey: ["contacts", vendorId],
-    queryFn: () => listContacts(vendorId),
+    queryFn: async () => (await listContacts(vendorId)).items,
   });
   const contacts = contactsQuery.data ?? [];
 

@@ -1,4 +1,4 @@
-"""Human dispositions: findings + evidence matches (reviewer/org_admin).
+﻿"""Human dispositions: findings + evidence matches (reviewer/org_admin).
 
 Dispositions are annotations, never downgrades: severity floors and the
 needs_review forcing stay intact; every disposition is audited. This closes
@@ -57,20 +57,22 @@ def test_reviewer_dispositions_a_finding(client):
     assert stamped and stamped[0]["disposition"] == "acknowledged"
 
 
-def test_disposition_is_role_guarded(client):
+def test_disposition_role_matrix(client):
+    """docs/API.md §5 'Work cases' row: assign, review actions, disposition —
+    finance_officer ✓, reviewer ✓, org_admin ✓; the auditor stays read-only."""
     org_id, _invoice_id, finding = _assessed_finding(client)
     _add_org_roles(client, org_id)
 
-    # finance_officer may work cases but NOT disposition (reviewer/org_admin).
+    # finance_officer WORKS cases — including dispositions.
     client.cookies.clear()
     login_as(client, "fin@acme.example")
-    assert (
-        client.post(
-            f"/api/v1/findings/{finding['id']}/disposition",
-            json={"disposition": "dismissed"},
-        ).status_code
-        == 403
+    ok = client.post(
+        f"/api/v1/findings/{finding['id']}/disposition",
+        json={"disposition": "dismissed", "reason": "Reviewed — not actionable."},
     )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["disposition"] == "dismissed"
+    assert ok.json()["dispositioned_at"] is not None
 
     # auditor is read-only.
     client.cookies.clear()
@@ -78,7 +80,7 @@ def test_disposition_is_role_guarded(client):
     assert (
         client.post(
             f"/api/v1/findings/{finding['id']}/disposition",
-            json={"disposition": "dismissed"},
+            json={"disposition": "dismissed", "reason": "auditor probe"},
         ).status_code
         == 403
     )
@@ -103,7 +105,7 @@ def test_disposition_is_audited(client):
     client.cookies.clear()
     add_user(org_id, "aud2@acme.example", "auditor")
     login_as(client, "aud2@acme.example")
-    events = client.get("/api/v1/audit-events?action=finding.dispositioned").json()
+    events = client.get("/api/v1/audit-events?action=finding.dispositioned").json()["items"]
     assert any(
         e["entity_id"] == finding["id"]
         and e["detail"]["from"] == "open"
@@ -151,30 +153,23 @@ def test_duplicate_match_can_be_reviewed(client):
     assert fetched.status_code == 200
     assert fetched.json()["match_kind"] == "invoice_number"
 
-    # finance_officer cannot review.
+    # finance_officer CAN review a match ("Work cases" row, docs/API.md §5).
     _add_org_roles(client, org_id)
     client.cookies.clear()
     login_as(client, "fin@acme.example")
-    assert (
-        client.post(
-            f"/api/v1/matches/{match_id}/review", json={"status": "confirmed"}
-        ).status_code
-        == 403
-    )
-
-    # reviewer confirms it.
-    client.cookies.clear()
-    login_as(client, "rev@acme.example")
-    reviewed = client.post(
+    fin_reviewed = client.post(
         f"/api/v1/matches/{match_id}/review",
         json={"status": "confirmed", "note": "Second billing confirmed."},
     )
-    assert reviewed.status_code == 200, reviewed.text
-    body = reviewed.json()
-    assert body["status"] == "confirmed"
-    assert body["reviewed_at"] is not None
+    assert fin_reviewed.status_code == 200, fin_reviewed.text
+    assert fin_reviewed.json()["status"] == "confirmed"
+    assert fin_reviewed.json()["reviewed_at"] is not None
 
-    # 'open' is not a decision — it cannot be written back.
+    # reviewer sees the confirmed decision; 'open' is not a decision — it
+    # cannot be written back (a non-empty reason is still mandatory → 422
+    # before any status validation could apply).
+    client.cookies.clear()
+    login_as(client, "rev@acme.example")
     reopen = client.post(
         f"/api/v1/matches/{match_id}/review", json={"status": "open"}
     )

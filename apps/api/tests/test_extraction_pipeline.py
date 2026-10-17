@@ -1,4 +1,4 @@
-"""Extraction pipeline wiring (Prompt-02): provider selection via
+﻿"""Extraction pipeline wiring (Prompt-02): provider selection via
 settings.ocr_provider, honest stub fallback when an engine is unavailable,
 misconfiguration failing loudly, and the upsert-per-version rule."""
 
@@ -49,7 +49,7 @@ def test_upload_runs_the_configured_text_layer_provider(client):
     assert extraction["provider_meta"]["extractor"] in ("pypdf", "pdfminer.six")
     assert extraction["status"] == "completed"
 
-    fields = client.get(f"/api/v1/documents/{body['id']}/fields").json()
+    fields = client.get(f"/api/v1/documents/{body['id']}/fields").json()["items"]
     names = {f["field_name"] for f in fields}
     assert {"vendor_name", "invoice_number", "invoice_date", "subtotal", "tax", "total", "iban"} <= names
     total = next(f for f in fields if f["field_name"] == "total")
@@ -80,7 +80,7 @@ def test_unavailable_engine_falls_back_to_stub_honestly(client, _ocr_provider_en
     assert body["processing_status"] == "completed"
     assert extraction["ocr_provider"] == "stub"
     assert "tesseract" in extraction["provider_meta"]["fallback"]
-    assert client.get(f"/api/v1/documents/{body['id']}/fields").json() == []
+    assert client.get(f"/api/v1/documents/{body['id']}/fields").json()["items"] == []
 
 
 def test_unknown_provider_fails_loudly(client, _ocr_provider_env):
@@ -93,7 +93,7 @@ def test_unknown_provider_fails_loudly(client, _ocr_provider_env):
     assert response.json()["error"]["code"] == "business_rule_violation"
 
     # The document row records the durable failure; a retry is possible.
-    listing = client.get("/api/v1/documents").json()
+    listing = client.get("/api/v1/documents").json()["items"]
     assert listing, "the upload was persisted before the job failed"
 
 
@@ -104,4 +104,4 @@ def test_stub_provider_yields_no_fields(client, _ocr_provider_env):
     assert body["processing_status"] == "completed"
     extraction = client.get(f"/api/v1/documents/{body['id']}/extraction").json()
     assert extraction["ocr_provider"] == "stub"
-    assert client.get(f"/api/v1/documents/{body['id']}/fields").json() == []
+    assert client.get(f"/api/v1/documents/{body['id']}/fields").json()["items"] == []

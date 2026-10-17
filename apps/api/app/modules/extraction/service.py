@@ -243,6 +243,8 @@ def get_result(
 
 
 def list_fields(db: Session, *, result_id: object) -> list[ExtractionField]:
+    """ALL fields of one extraction result. Internal/cross-module use
+    (procurement's provenance binding must see every field)."""
     return list(
         db.scalars(
             select(ExtractionField)
@@ -250,3 +252,12 @@ def list_fields(db: Session, *, result_id: object) -> list[ExtractionField]:
             .order_by(ExtractionField.created_at)
         )
     )
+
+
+def list_fields_page(
+    db: Session, *, result_id: object, limit: int, offset: int
+) -> tuple[list[ExtractionField], int]:
+    """Paginated view for the GET /documents/{id}/fields route (API.md §3):
+    total is the count over the same unpaginated filter."""
+    rows = list_fields(db, result_id=result_id)
+    return rows[offset : offset + limit], len(rows)

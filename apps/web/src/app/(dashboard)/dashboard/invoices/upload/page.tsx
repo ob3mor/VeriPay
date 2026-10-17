@@ -76,7 +76,7 @@ export default function InvoiceUploadPage() {
   // select (the upload itself does not depend on it).
   const vendorsQuery = useQuery({
     queryKey: ["vendors", "upload-options"],
-    queryFn: () => listVendors({ limit: 100 }),
+    queryFn: async () => (await listVendors({ limit: 100 })).items,
     staleTime: 60_000,
   });
 

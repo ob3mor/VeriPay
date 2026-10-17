@@ -41,7 +41,7 @@ export function ActionsFeed({ caseId, canContribute }: ActionsFeedProps) {
   const queryClient = useQueryClient();
   const actionsQuery = useQuery({
     queryKey: ["actions", caseId],
-    queryFn: () => listReviewActions(caseId),
+    queryFn: async () => (await listReviewActions(caseId)).items,
   });
 
   const [draft, setDraft] = useState("");

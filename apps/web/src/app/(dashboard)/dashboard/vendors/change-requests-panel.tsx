@@ -43,7 +43,7 @@ export function ChangeRequestsPanel({ vendorId }: ChangeRequestsPanelProps) {
 
   const requestsQuery = useQuery({
     queryKey: ["change-requests", vendorId],
-    queryFn: () => listChangeRequests(vendorId),
+    queryFn: async () => (await listChangeRequests(vendorId)).items,
   });
 
   const [createOpen, setCreateOpen] = useState(false);

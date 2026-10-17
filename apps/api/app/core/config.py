@@ -177,6 +177,16 @@ class Settings(BaseSettings):
                 "characters, and not the built-in development default) when "
                 "VERIPAY_ENV=production."
             )
+        if self.env == "production" and not self.cookie_secure:
+            # Session cookies without Secure travel over plain HTTP; both
+            # production profiles (Azure demo included) are HTTPS-only, so a
+            # production start without VERIPAY_COOKIE_SECURE=true is a
+            # misconfiguration, not a choice.
+            raise ValueError(
+                "VERIPAY_COOKIE_SECURE=true is required when "
+                "VERIPAY_ENV=production (session cookies must never travel "
+                "without the Secure flag)."
+            )
         return self
 
 

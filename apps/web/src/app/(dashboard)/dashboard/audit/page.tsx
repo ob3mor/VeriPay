@@ -4,10 +4,11 @@
  * Audit trail — GET /audit-events (append-only; org_admin/auditor only,
  * docs/API.md §5 role × action matrix).
  *
- * Wire shape (packages/api-contracts): the endpoint returns a BARE ARRAY of
- * AuditEventOut, takes `limit` (default/max here: 50/100), `offset`, and an
- * EXACT `action` filter. There is no total, so "load more" continues until a
- * page comes back short. Stated honestly on screen:
+ * Wire shape (packages/api-contracts): the endpoint returns the API.md §3
+ * envelope (Paginated<AuditEventOut>), takes `limit` (default/max here:
+ * 50/100), `offset`, and an EXACT `action` filter; `pagination.total` counts
+ * the same filtered set, so "load more" knows exactly when everything is
+ * loaded. Stated honestly on screen:
  * - the action filter is a server-side exact match;
  * - the free-text search runs client-side over the loaded events only.
  *
@@ -119,13 +120,17 @@ export default function AuditPage() {
         action: actionFilter || undefined,
       }),
     initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) =>
-      lastPage.length < PAGE_SIZE ? undefined : allPages.length * PAGE_SIZE,
+    getNextPageParam: (lastPage) => {
+      // Exact: the §3 envelope's total counts the same filtered set.
+      const { offset, total } = lastPage.pagination;
+      const loaded = offset + lastPage.items.length;
+      return loaded < total ? loaded : undefined;
+    },
     enabled: canViewAudit,
   });
 
   const events = useMemo(
-    () => (eventsQuery.data ? eventsQuery.data.pages.flat() : []),
+    () => (eventsQuery.data ? eventsQuery.data.pages.flatMap((page) => page.items) : []),
     [eventsQuery.data]
   );
 

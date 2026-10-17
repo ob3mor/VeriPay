@@ -271,19 +271,18 @@ def create_line_item(
 
 
 def list_line_items(
-    db: Session, *, org_id: object, invoice_id: object
-) -> list[InvoiceLineItem]:
+    db: Session, *, org_id: object, invoice_id: object, limit: int, offset: int
+) -> tuple[list[InvoiceLineItem], int]:
     get_invoice(db, org_id=org_id, invoice_id=invoice_id)  # org-scoped 404 first
-    return list(
-        db.scalars(
-            select(InvoiceLineItem)
-            .where(
-                InvoiceLineItem.organization_id == org_id,
-                InvoiceLineItem.invoice_id == invoice_id,
-            )
-            .order_by(InvoiceLineItem.position)
-        )
+    base = select(InvoiceLineItem).where(
+        InvoiceLineItem.organization_id == org_id,
+        InvoiceLineItem.invoice_id == invoice_id,
     )
+    total = len(db.scalars(base).all())
+    rows = db.scalars(
+        base.order_by(InvoiceLineItem.position).offset(offset).limit(limit)
+    ).all()
+    return list(rows), total
 
 
 def _record_number_duplicates(db: Session, invoice: Invoice) -> int:

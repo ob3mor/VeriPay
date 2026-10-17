@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, Up
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.api.v1.routes import _domain_schemas as _ds
 from app.core.db import get_db
 from app.core.enums import DocumentKind, JobType, ProcessingStatus, UserRole
 from app.modules.audit.service import AuditContext, record_audit
@@ -140,17 +141,20 @@ def upload_document(
     )
 
 
-@router.get("", response_model=list[schemas.DocumentOut])
+@router.get("", response_model=_ds.PageOut[schemas.DocumentOut])
 def list_documents(
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
     limit: _PageLimit = 25,
     offset: _PageOffset = 0,
-) -> list[schemas.DocumentOut]:
-    rows, _total = service.list_documents(
+) -> _ds.PageOut[schemas.DocumentOut]:
+    rows, total = service.list_documents(
         db, org_id=actor.organization_id, limit=limit, offset=offset
     )
-    return [_doc_out(d) for d in rows]
+    return _ds.PageOut(
+        items=[_doc_out(d) for d in rows],
+        pagination=_ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )
 
 
 @router.get("/{document_id}", response_model=schemas.DocumentOut)
@@ -235,12 +239,17 @@ def get_extraction(
     )
 
 
-@router.get("/{document_id}/fields", response_model=list[schemas.ExtractionFieldOut])
+@router.get(
+    "/{document_id}/fields",
+    response_model=_ds.PageOut[schemas.ExtractionFieldOut],
+)
 def list_extraction_fields(
     document_id: uuid.UUID,
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
-) -> list[schemas.ExtractionFieldOut]:
+    limit: _PageLimit = 25,
+    offset: _PageOffset = 0,
+) -> _ds.PageOut[schemas.ExtractionFieldOut]:
     document = service.get_document(
         db, org_id=actor.organization_id, document_id=document_id
     )
@@ -248,11 +257,16 @@ def list_extraction_fields(
         db, org_id=actor.organization_id, document_id=document.id
     )
     if result is None:
-        return []
-    return [
-        _field_out(f)
-        for f in extraction_service.list_fields(db, result_id=result.id)
-    ]
+        return _ds.PageOut(
+            items=[], pagination=_ds.PaginationOut(limit=limit, offset=offset, total=0)
+        )
+    rows, total = extraction_service.list_fields_page(
+        db, result_id=result.id, limit=limit, offset=offset
+    )
+    return _ds.PageOut(
+        items=[_field_out(f) for f in rows],
+        pagination=_ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )
 
 
 _reviewer = require_roles(UserRole.ORG_ADMIN, UserRole.REVIEWER)

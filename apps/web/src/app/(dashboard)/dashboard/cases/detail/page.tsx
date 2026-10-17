@@ -158,7 +158,7 @@ function CaseDetailView() {
 
   const actionsQuery = useQuery({
     queryKey: ["cases", "actions", caseId],
-    queryFn: () => listReviewActions(caseId),
+    queryFn: async () => (await listReviewActions(caseId)).items,
     enabled: caseId.length > 0 && !!data,
   });
 
@@ -183,7 +183,7 @@ function CaseDetailView() {
   });
   const accountsQuery = useQuery({
     queryKey: ["vendors", vendorId, "bank-accounts"],
-    queryFn: () => listBankAccounts(vendorId!),
+    queryFn: async () => (await listBankAccounts(vendorId!)).items,
     enabled: !!vendorId,
   });
 

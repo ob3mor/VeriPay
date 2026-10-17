@@ -89,9 +89,11 @@ export interface Pagination {
 }
 
 /**
- * The API.md §3 list envelope. NOTE: the committed snapshot shows list
- * endpoints returning bare arrays — this envelope is NOT produced yet; it is
- * kept so the swap is a type-level change only.
+ * The API.md §3 list envelope. Produced by every list endpoint (Phase 2+):
+ * `{"items": [...], "pagination": {"limit": …, "offset": …, "total": …}}`
+ * (docs/API.md §5 rule 5). The backend also accepts `limit`/`offset` on the
+ * sub-resource lists (line items, contacts, bank accounts, change requests,
+ * case actions, extraction fields, audit events).
  */
 export interface Paginated<T> {
   items: T[];

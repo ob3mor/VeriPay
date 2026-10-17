@@ -42,6 +42,18 @@ export const HONEST_OUTCOME_LABELS = {
 } as const;
 
 /**
+ * The per-row FETCH failed (e.g. a network hiccup on the small per-invoice
+ * assessment GET) — deliberately distinct from "Processing failed", which
+ * means the assessment itself ran and reported a failed state. A load
+ * failure says nothing about the invoice or the pipeline; a retry is
+ * offered instead of leaving the row in a permanent loading state.
+ */
+export const LOAD_FAILED_PRESENTATION: StatusPresentation = {
+  label: "Load failed",
+  tone: "warning",
+};
+
+/**
  * Map a fraud-assessment `risk_level` (core.enums.RiskLevel) to its honest
  * presentation. `critical` and `high` deliberately share the label — both
  * mean "a material discrepancy exists and a human must look at it"; the

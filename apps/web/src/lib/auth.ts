@@ -9,7 +9,10 @@
  *   cannot read at all (XSS cannot exfiltrate it).
  * - The readable `veripay_csrf` cookie is echoed in the X-CSRF-Token header on
  *   mutating requests by src/lib/api.ts (CSRF double-submit; the backend
- *   enforces it).
+ *   enforces it). The csrf cookie is NOT the session credential: the backend
+ *   sets it to a per-session derived value (an HMAC of the session token —
+ *   apps/api core/security.csrf_token_for), so a script that reads it cannot
+ *   replay it as a session.
  *
  * On a fresh page load the SPA needs NO stored token: GET /auth/me
  * authenticates through the session cookie alone (credentials: "include").

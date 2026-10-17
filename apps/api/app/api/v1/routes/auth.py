@@ -34,7 +34,11 @@ from app.core.ratelimit import (
     login_rate_limiter,
     register_rate_limiter,
 )
-from app.core.security import create_access_token, decode_access_token
+from app.core.security import (
+    create_access_token,
+    csrf_token_for,
+    decode_access_token,
+)
 from app.core.token_store import revoked_tokens
 from app.models import User
 from app.modules.auth import schemas
@@ -68,22 +72,30 @@ def lockout_key(request: Request, username: str) -> tuple[str, str]:
     return (client_ip(request), username.strip().lower())
 
 
-def _set_session_cookies(response: Response, csrf_token: str) -> None:
+def _set_session_cookies(response: Response, session_token: str) -> None:
     """veripay_session: httpOnly, SameSite=Lax (the ambient authority).
     veripay_csrf: readable by JS so the SPA can echo it in X-CSRF-Token.
 
-    The two cookies carry the SAME random value on purpose: the csrf cookie
-    alone is useless without the httpOnly session cookie, and this keeps the
-    session creation single-token (no extra server-side state).
+    The csrf cookie deliberately does NOT carry the session token: it is
+    readable by any script on the page, so a script that reads it must not
+    obtain a replayable session credential. It carries a DERIVED value —
+    HMAC of the session token (core/security.csrf_token_for) — which the
+    double-submit check and the middleware's stateless pairing verification
+    accept, while ``sessions.validate_session`` keeps validating only the
+    raw httpOnly value.
     """
     settings = get_settings()
     max_age = settings.session_ttl_days * 24 * 3600
     common = {"samesite": "lax", "secure": settings.cookie_secure, "path": "/"}
     response.set_cookie(
-        SESSION_COOKIE_NAME, csrf_token, max_age=max_age, httponly=True, **common
+        SESSION_COOKIE_NAME, session_token, max_age=max_age, httponly=True, **common
     )
     response.set_cookie(
-        CSRF_COOKIE_NAME, csrf_token, max_age=max_age, httponly=False, **common
+        CSRF_COOKIE_NAME,
+        csrf_token_for(session_token),
+        max_age=max_age,
+        httponly=False,
+        **common,
     )
 
 

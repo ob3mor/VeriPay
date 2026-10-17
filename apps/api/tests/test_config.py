@@ -22,8 +22,14 @@ def test_production_without_real_secret_is_refused():
 
 
 def test_production_with_strong_secret_is_accepted():
-    settings = Settings(env="production", jwt_secret="a" * 48)
+    settings = Settings(env="production", jwt_secret="a" * 48, cookie_secure=True)
     assert settings.env == "production"
+
+
+def test_production_without_secure_cookies_is_refused():
+    """HTTPS-only production profiles: session cookies must carry Secure."""
+    with pytest.raises(ValidationError):
+        Settings(env="production", jwt_secret="a" * 48)  # cookie_secure defaults False
 
 
 def test_production_env_is_matched_case_insensitively():
@@ -31,7 +37,7 @@ def test_production_env_is_matched_case_insensitively():
     for raw in ("PRODUCTION", "Production", "PROD", "prod", " production "):
         with pytest.raises(ValidationError):
             Settings(env=raw)  # keeps the dev-only default secret
-        accepted = Settings(env=raw, jwt_secret="a" * 48)
+        accepted = Settings(env=raw, jwt_secret="a" * 48, cookie_secure=True)
         assert accepted.env == "production"
 
 

@@ -45,7 +45,7 @@ def test_account_starts_pending_and_never_auto_approves(client):
         data={"kind": "invoice"},
     )
     assert document.status_code == 201
-    after = client.get(f"/api/v1/vendors/{vendor_id}/bank-accounts").json()[0]
+    after = client.get(f"/api/v1/vendors/{vendor_id}/bank-accounts").json()["items"][0]
     assert after["status"] == "pending"
 
 
@@ -112,7 +112,7 @@ def test_responses_are_masked(client):
     add_user(org_id, "fin-masked@acme.example", "finance_officer")
     client.cookies.clear()
     login_as(client, "fin-masked@acme.example")
-    accounts = client.get(f"/api/v1/vendors/{vendor_id}/bank-accounts").json()
+    accounts = client.get(f"/api/v1/vendors/{vendor_id}/bank-accounts").json()["items"]
     assert accounts
     for account in accounts:
         assert "account_fingerprint" not in account
@@ -160,7 +160,7 @@ def test_change_request_human_decision_flow(client):
         json={"resolution_note": "Written confirmation on file."},
     )
     assert approved.status_code == 200
-    accounts = client.get(f"/api/v1/vendors/{vendor_id}/bank-accounts").json()
+    accounts = client.get(f"/api/v1/vendors/{vendor_id}/bank-accounts").json()["items"]
     current = [a for a in accounts if a["is_current"]]
     assert len(current) == 1
     assert current[0]["status"] == "approved"

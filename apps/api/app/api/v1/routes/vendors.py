@@ -16,6 +16,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
+from app.api.v1.routes import _domain_schemas as _ds
 from app.core.db import get_db
 from app.core.enums import VendorStatus
 from app.modules.audit.service import AuditContext, record_audit
@@ -97,17 +98,20 @@ def create_vendor(
     return _vendor_out(vendor)
 
 
-@router.get("", response_model=list[schemas.VendorOut])
+@router.get("", response_model=_ds.PageOut[schemas.VendorOut])
 def list_vendors(
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
     limit: _PageLimit = 25,
     offset: _PageOffset = 0,
-) -> list[schemas.VendorOut]:
-    rows, _total = service.list_vendors(
+) -> _ds.PageOut[schemas.VendorOut]:
+    rows, total = service.list_vendors(
         db, org_id=actor.organization_id, limit=limit, offset=offset
     )
-    return [_vendor_out(v) for v in rows]
+    return _ds.PageOut(
+        items=[_vendor_out(v) for v in rows],
+        pagination=_ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )
 
 
 @router.get("/{vendor_id}", response_model=schemas.VendorOut)
@@ -156,16 +160,23 @@ def create_contact(
     return schemas.ContactOut.model_validate(contact)
 
 
-@router.get("/{vendor_id}/contacts", response_model=list[schemas.ContactOut])
+@router.get(
+    "/{vendor_id}/contacts", response_model=_ds.PageOut[schemas.ContactOut]
+)
 def list_contacts(
     vendor_id: uuid.UUID,
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
-) -> list[schemas.ContactOut]:
-    rows = service.list_contacts(
-        db, org_id=actor.organization_id, vendor_id=vendor_id
+    limit: _PageLimit = 25,
+    offset: _PageOffset = 0,
+) -> _ds.PageOut[schemas.ContactOut]:
+    rows, total = service.list_contacts(
+        db, org_id=actor.organization_id, vendor_id=vendor_id, limit=limit, offset=offset
     )
-    return [schemas.ContactOut.model_validate(c) for c in rows]
+    return _ds.PageOut(
+        items=[schemas.ContactOut.model_validate(c) for c in rows],
+        pagination=_ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )
 
 
 # ----------------------------------------------------------- bank accounts ---
@@ -212,21 +223,31 @@ def create_bank_account(
     return _account_out(account)
 
 
-@router.get("/{vendor_id}/bank-accounts")
+@router.get(
+    "/{vendor_id}/bank-accounts",
+    response_model=_ds.PageOut[schemas.BankAccountOut | schemas.BankAccountDetail],
+)
 def list_bank_accounts(
     vendor_id: uuid.UUID,
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
-) -> list[schemas.BankAccountOut | schemas.BankAccountDetail]:
+    limit: _PageLimit = 25,
+    offset: _PageOffset = 0,
+) -> _ds.PageOut[schemas.BankAccountOut | schemas.BankAccountDetail]:
     """Masked account list. reviewer/org_admin additionally receive the R5
     verification provenance (the investigation view); other roles do not."""
-    rows = service.list_bank_accounts(
-        db, org_id=actor.organization_id, vendor_id=vendor_id
+    rows, total = service.list_bank_accounts(
+        db, org_id=actor.organization_id, vendor_id=vendor_id, limit=limit, offset=offset
     )
     role = actor.role
     if role in ("org_admin", "reviewer"):
-        return [_account_detail(a) for a in rows]
-    return [_account_out(a) for a in rows]
+        items = [_account_detail(a) for a in rows]
+    else:
+        items = [_account_out(a) for a in rows]
+    return _ds.PageOut(
+        items=items,
+        pagination=_ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )
 
 
 @router.post(
@@ -367,17 +388,23 @@ def create_change_request(
 
 
 @router.get(
-    "/{vendor_id}/change-requests", response_model=list[schemas.ChangeRequestOut]
+    "/{vendor_id}/change-requests",
+    response_model=_ds.PageOut[schemas.ChangeRequestOut],
 )
 def list_change_requests(
     vendor_id: uuid.UUID,
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
-) -> list[schemas.ChangeRequestOut]:
-    rows = service.list_change_requests(
-        db, org_id=actor.organization_id, vendor_id=vendor_id
+    limit: _PageLimit = 25,
+    offset: _PageOffset = 0,
+) -> _ds.PageOut[schemas.ChangeRequestOut]:
+    rows, total = service.list_change_requests(
+        db, org_id=actor.organization_id, vendor_id=vendor_id, limit=limit, offset=offset
     )
-    return [schemas.ChangeRequestOut.model_validate(c) for c in rows]
+    return _ds.PageOut(
+        items=[schemas.ChangeRequestOut.model_validate(c) for c in rows],
+        pagination=_ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )
 
 
 @router.post(

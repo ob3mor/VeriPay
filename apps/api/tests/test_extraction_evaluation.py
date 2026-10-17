@@ -1,4 +1,4 @@
-"""Extraction evaluation over the SYNTHETIC fixtures (Prompt-02, item 9).
+﻿"""Extraction evaluation over the SYNTHETIC fixtures (Prompt-02, item 9).
 
 What this measures — read the honesty notes before quoting the numbers:
 
@@ -100,7 +100,7 @@ def test_field_precision_recall_and_latency_on_fixtures(client):
 
         extracted = {
             f["field_name"]: f
-            for f in client.get(f"/api/v1/documents/{body['id']}/fields").json()
+            for f in client.get(f"/api/v1/documents/{body['id']}/fields").json()["items"]
         }
 
         for name, expected in spec.expected.items():
@@ -158,4 +158,4 @@ def test_blurry_scan_has_no_text_layer_and_yields_no_fields(client):
     extraction = client.get(f"/api/v1/documents/{body['id']}/extraction").json()
     assert extraction["ocr_provider"] == "text_layer"
     assert "pixel OCR" in extraction["provider_meta"]["note"]
-    assert client.get(f"/api/v1/documents/{body['id']}/fields").json() == []
+    assert client.get(f"/api/v1/documents/{body['id']}/fields").json()["items"] == []

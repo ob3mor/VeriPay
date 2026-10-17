@@ -1,4 +1,4 @@
-"""Tenant isolation per resource (docs/API.md §5 rule 6): A's principal gets
+﻿"""Tenant isolation per resource (docs/API.md §5 rule 6): A's principal gets
 404 on every B-owned object and write against it; B's objects never appear in
 A's lists. Covers the resources the auditor found untested: invoices, POs,
 cases, assessments, extraction reads, line items, processing jobs, matches,
@@ -190,17 +190,17 @@ def test_every_resource_is_404_across_orgs(client):
 
     # --- lists never leak org A rows ----------------------------------------
     assert ids["invoice_id"] not in [
-        i["id"] for i in client.get("/api/v1/invoices").json()
+        i["id"] for i in client.get("/api/v1/invoices").json()["items"]
     ]
     assert ids["po_id"] not in [
-        p["id"] for p in client.get("/api/v1/purchase-orders").json()
+        p["id"] for p in client.get("/api/v1/purchase-orders").json()["items"]
     ]
-    assert ids["case_id"] not in [c["id"] for c in client.get("/api/v1/cases").json()]
+    assert ids["case_id"] not in [c["id"] for c in client.get("/api/v1/cases").json()["items"]]
     assert ids["document_id"] not in [
-        d["id"] for d in client.get("/api/v1/documents").json()
+        d["id"] for d in client.get("/api/v1/documents").json()["items"]
     ]
     assert ids["vendor_id"] not in [
-        v["id"] for v in client.get("/api/v1/vendors").json()
+        v["id"] for v in client.get("/api/v1/vendors").json()["items"]
     ]
 
 

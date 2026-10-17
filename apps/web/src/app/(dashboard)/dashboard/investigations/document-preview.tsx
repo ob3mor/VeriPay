@@ -81,7 +81,7 @@ function DocumentView({ documentId }: { documentId: string }) {
   // workspace's matcher and the fields panel — one shared cache entry).
   const fieldsQuery = useQuery({
     queryKey: ["fields", documentId],
-    queryFn: () => listExtractionFields(documentId),
+    queryFn: async () => (await listExtractionFields(documentId)).items,
     staleTime: 60_000,
   });
   const fields: ExtractionFieldOut[] = fieldsQuery.data ?? [];
@@ -269,7 +269,7 @@ function DocumentChooser({
   const [open, setOpen] = useState(false);
   const listQuery = useQuery({
     queryKey: ["documents"],
-    queryFn: () => listDocuments({ limit: 100 }),
+    queryFn: async () => (await listDocuments({ limit: 100 })).items,
     enabled: open,
   });
 

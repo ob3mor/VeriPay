@@ -77,7 +77,7 @@ function FieldsForDocument({
   });
   const fieldsQuery = useQuery({
     queryKey: ["fields", documentId],
-    queryFn: () => listExtractionFields(documentId),
+    queryFn: async () => (await listExtractionFields(documentId)).items,
     staleTime: 60_000,
   });
 

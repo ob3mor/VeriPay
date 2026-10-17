@@ -19,9 +19,10 @@
  *   rejections (API unreachable / offline) become ApiNetworkError. UI code
  *   must branch on these instead of crashing — the static pages render even
  *   with no backend running.
- * - List endpoints: per the committed OpenAPI snapshot they return BARE JSON
- *   ARRAYS (limit/offset params, no pagination envelope yet — see
- *   packages/api-contracts). The list helpers below type them as `T[]`.
+ * - List endpoints: the docs/API.md §3 envelope — `{"items": [...],
+ *   "pagination": {limit, offset, total}}` — on every list surface. The list
+ *   helpers below return the `Paginated<T>` envelope; consumers read
+ *   `.items` (and `.pagination.total` where the total matters).
  */
 import type {
   ApiErrorBody,
@@ -59,6 +60,7 @@ import type {
   LogoutResponse,
   MatchReviewIn,
   MeResponse,
+  Paginated,
   ProcessingJobOut,
   ProcessedDocumentOut,
   PurchaseOrderIn,
@@ -300,8 +302,8 @@ export async function createVendor(input: VendorIn): Promise<VendorOut> {
   return apiFetch<VendorOut>("/vendors", jsonRequest(input));
 }
 
-export async function listVendors(params?: ListParams): Promise<VendorOut[]> {
-  return apiFetch<VendorOut[]>(`/vendors${buildQuery(params)}`);
+export async function listVendors(params?: ListParams): Promise<Paginated<VendorOut>> {
+  return apiFetch<Paginated<VendorOut>>(`/vendors${buildQuery(params)}`);
 }
 
 export async function getVendor(vendorId: string): Promise<VendorOut> {
@@ -312,8 +314,8 @@ export async function getVendor(vendorId: string): Promise<VendorOut> {
 // Vendor contacts — /vendors/{id}/contacts
 // ---------------------------------------------------------------------------
 
-export async function listContacts(vendorId: string): Promise<ContactOut[]> {
-  return apiFetch<ContactOut[]>(`/vendors/${encodeURIComponent(vendorId)}/contacts`);
+export async function listContacts(vendorId: string): Promise<Paginated<ContactOut>> {
+  return apiFetch<Paginated<ContactOut>>(`/vendors/${encodeURIComponent(vendorId)}/contacts`);
 }
 
 export async function createContact(vendorId: string, input: ContactIn): Promise<ContactOut> {
@@ -330,8 +332,8 @@ export async function createContact(vendorId: string, input: ContactIn): Promise
 /** List a vendor's bank accounts. Items are the masked view; for
  *  reviewer/org_admin the backend widens them to BankAccountDetail (the R5
  *  verification provenance — API.md §5.8). */
-export async function listBankAccounts(vendorId: string): Promise<BankAccountListItem[]> {
-  return apiFetch<BankAccountListItem[]>(
+export async function listBankAccounts(vendorId: string): Promise<Paginated<BankAccountListItem>> {
+  return apiFetch<Paginated<BankAccountListItem>>(
     `/vendors/${encodeURIComponent(vendorId)}/bank-accounts`
   );
 }
@@ -390,8 +392,8 @@ export async function revokeBankAccount(
 // Bank-account change requests (R5 change control)
 // ---------------------------------------------------------------------------
 
-export async function listChangeRequests(vendorId: string): Promise<ChangeRequestOut[]> {
-  return apiFetch<ChangeRequestOut[]>(
+export async function listChangeRequests(vendorId: string): Promise<Paginated<ChangeRequestOut>> {
+  return apiFetch<Paginated<ChangeRequestOut>>(
     `/vendors/${encodeURIComponent(vendorId)}/change-requests`
   );
 }
@@ -438,8 +440,8 @@ export async function createPurchaseOrder(input: PurchaseOrderIn): Promise<Purch
   return apiFetch<PurchaseOrderOut>("/purchase-orders", jsonRequest(input));
 }
 
-export async function listPurchaseOrders(params?: ListParams): Promise<PurchaseOrderOut[]> {
-  return apiFetch<PurchaseOrderOut[]>(`/purchase-orders${buildQuery(params)}`);
+export async function listPurchaseOrders(params?: ListParams): Promise<Paginated<PurchaseOrderOut>> {
+  return apiFetch<Paginated<PurchaseOrderOut>>(`/purchase-orders${buildQuery(params)}`);
 }
 
 export async function getPurchaseOrder(poId: string): Promise<PurchaseOrderOut> {
@@ -454,8 +456,8 @@ export async function createInvoice(input: InvoiceIn): Promise<InvoiceOut> {
   return apiFetch<InvoiceOut>("/invoices", jsonRequest(input));
 }
 
-export async function listInvoices(params?: ListParams): Promise<InvoiceOut[]> {
-  return apiFetch<InvoiceOut[]>(`/invoices${buildQuery(params)}`);
+export async function listInvoices(params?: ListParams): Promise<Paginated<InvoiceOut>> {
+  return apiFetch<Paginated<InvoiceOut>>(`/invoices${buildQuery(params)}`);
 }
 
 export async function getInvoice(invoiceId: string): Promise<InvoiceOut> {
@@ -568,8 +570,8 @@ export async function reviewMatch(
 // ---------------------------------------------------------------------------
 
 /** GET /invoices/{id}/line-items — parse/display order line items. */
-export async function listLineItems(invoiceId: string): Promise<LineItemOut[]> {
-  return apiFetch<LineItemOut[]>(
+export async function listLineItems(invoiceId: string): Promise<Paginated<LineItemOut>> {
+  return apiFetch<Paginated<LineItemOut>>(
     `/invoices/${encodeURIComponent(invoiceId)}/line-items`
   );
 }
@@ -616,8 +618,8 @@ export async function uploadDocument(
   return apiFetch<ProcessedDocumentOut>("/documents", { method: "POST", body: form });
 }
 
-export async function listDocuments(params?: ListParams): Promise<DocumentOut[]> {
-  return apiFetch<DocumentOut[]>(`/documents${buildQuery(params)}`);
+export async function listDocuments(params?: ListParams): Promise<Paginated<DocumentOut>> {
+  return apiFetch<Paginated<DocumentOut>>(`/documents${buildQuery(params)}`);
 }
 
 export async function getDocument(documentId: string): Promise<DocumentOut> {
@@ -664,9 +666,9 @@ export async function getExtraction(documentId: string): Promise<ExtractionResul
 }
 
 /** GET /documents/{id}/fields — per-field rows with evidence spans +
- *  confidence (R3). Empty array when nothing was extracted yet. */
-export async function listExtractionFields(documentId: string): Promise<ExtractionFieldOut[]> {
-  return apiFetch<ExtractionFieldOut[]>(
+ *  confidence (R3). Empty items when nothing was extracted yet. */
+export async function listExtractionFields(documentId: string): Promise<Paginated<ExtractionFieldOut>> {
+  return apiFetch<Paginated<ExtractionFieldOut>>(
     `/documents/${encodeURIComponent(documentId)}/fields`
   );
 }
@@ -701,8 +703,8 @@ export async function reprocessDocument(documentId: string): Promise<ProcessedDo
 // Cases & review actions (R6) — /cases
 // ---------------------------------------------------------------------------
 
-export async function listCases(params?: ListParams): Promise<CaseOut[]> {
-  return apiFetch<CaseOut[]>(`/cases${buildQuery(params)}`);
+export async function listCases(params?: ListParams): Promise<Paginated<CaseOut>> {
+  return apiFetch<Paginated<CaseOut>>(`/cases${buildQuery(params)}`);
 }
 
 export async function openCase(input: CaseIn): Promise<CaseOut> {
@@ -723,8 +725,8 @@ export async function closeCase(caseId: string, input: CaseCloseIn): Promise<Cas
   return apiFetch<CaseOut>(`/cases/${encodeURIComponent(caseId)}/close`, jsonRequest(input));
 }
 
-export async function listReviewActions(caseId: string): Promise<ReviewActionOut[]> {
-  return apiFetch<ReviewActionOut[]>(`/cases/${encodeURIComponent(caseId)}/actions`);
+export async function listReviewActions(caseId: string): Promise<Paginated<ReviewActionOut>> {
+  return apiFetch<Paginated<ReviewActionOut>>(`/cases/${encodeURIComponent(caseId)}/actions`);
 }
 
 export async function addReviewAction(
@@ -741,8 +743,8 @@ export async function addReviewAction(
 // Audit — GET /audit-events (org_admin/auditor only, append-only)
 // ---------------------------------------------------------------------------
 
-export async function listAuditEvents(params?: AuditEventsListParams): Promise<AuditEventOut[]> {
-  return apiFetch<AuditEventOut[]>(`/audit-events${buildQuery(params)}`);
+export async function listAuditEvents(params?: AuditEventsListParams): Promise<Paginated<AuditEventOut>> {
+  return apiFetch<Paginated<AuditEventOut>>(`/audit-events${buildQuery(params)}`);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-"""Document upload edges (size) + hard delete — the auditor's untested
+﻿"""Document upload edges (size) + hard delete — the auditor's untested
 branches in app/modules/documents/service.py."""
 
 import io
@@ -30,7 +30,7 @@ def test_oversize_upload_is_rejected(client, monkeypatch):
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
     # Nothing was persisted.
-    assert client.get("/api/v1/documents").json() == []
+    assert client.get("/api/v1/documents").json()["items"] == []
 
 
 def test_empty_upload_is_rejected(client):

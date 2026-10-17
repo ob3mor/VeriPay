@@ -1,4 +1,4 @@
-"""Prompt-07 QA — security pass.
+﻿"""Prompt-07 QA — security pass.
 
 - Broken access control: role matrix sweep over every mutating endpoint
   (docs/API.md §5 role × action matrix).
@@ -39,6 +39,10 @@ DOC_B_BYTES = b"%PDF-1.4\nqa sweep delete target\n"
 UPLOAD_OP_BYTES = b"%PDF-1.4\nqa sweep upload op\n"
 
 CONTRIBUTE = {UserRole.ORG_ADMIN, UserRole.FINANCE_OFFICER, UserRole.REVIEWER}
+# docs/API.md §5 "Work cases" row (assign / review actions / disposition):
+# same roles as CONTRIBUTE, but a distinct matrix row — kept separate so the
+# sweep tests each row's intent, not an implementation constant.
+CASE_WORK = {UserRole.ORG_ADMIN, UserRole.FINANCE_OFFICER, UserRole.REVIEWER}
 VERIFY = {UserRole.ORG_ADMIN, UserRole.REVIEWER}
 ADMIN_ONLY = {UserRole.ORG_ADMIN}
 AUDIT_VIEW = {UserRole.ORG_ADMIN, UserRole.AUDITOR}
@@ -173,7 +177,7 @@ def _seed_role_world(client, tmp_path: Path) -> dict:
             files={"file": ("sweep_labeled.pdf", fh, "application/pdf")},
             data={"kind": "invoice"},
         ).json()
-    fields = client.get(f"/api/v1/documents/{doc_a['id']}/fields").json()
+    fields = client.get(f"/api/v1/documents/{doc_a['id']}/fields").json()["items"]
     assert fields, "labeled sweep document must extract fields"
     with io.BytesIO(DOC_B_BYTES) as fh:
         doc_b = client.post(
@@ -304,8 +308,8 @@ def test_role_matrix_sweep_over_mutating_endpoints(client, tmp_path, role):
                     "reject_change_request": VERIFY,
                     "create_purchase_order": CONTRIBUTE, "create_invoice": CONTRIBUTE,
                     "add_line_item": CONTRIBUTE, "resolve_vendor": CONTRIBUTE,
-                    "assess_invoice": CONTRIBUTE, "disposition_finding": VERIFY,
-                    "review_match": VERIFY, "open_case": VERIFY,
+                    "assess_invoice": CONTRIBUTE, "disposition_finding": CASE_WORK,
+                    "review_match": CASE_WORK, "open_case": VERIFY,
                     "assign_case": CONTRIBUTE, "add_review_action": CONTRIBUTE,
                     "close_case": VERIFY, "upload_document": CONTRIBUTE,
                     "reprocess_document": CONTRIBUTE,
@@ -382,7 +386,7 @@ def test_cross_tenant_org_b_ids_are_404_in_org_a_requests(client):
     )
     # Lists never leak B rows.
     assert invoice_b["id"] not in [
-        i["id"] for i in client.get("/api/v1/invoices").json()
+        i["id"] for i in client.get("/api/v1/invoices").json()["items"]
     ]
 
 
@@ -417,7 +421,7 @@ def test_sql_injection_probes_stay_parameterized_data(client):
 
         audit = client.get("/api/v1/audit-events", params={"action": probe})
         assert audit.status_code == 200
-        assert audit.json() == []  # no rows match; the filter stayed a filter
+        assert audit.json()["items"] == []  # no rows match; the filter stayed a filter
 
     # limit is a typed int — an injected string is a 422, never a 500.
     bad_limit = client.get("/api/v1/vendors", params={"limit": "1 OR 1=1"})
@@ -493,7 +497,7 @@ def test_xss_payloads_stored_and_served_as_inert_json(client):
     assert line.json()["description"] == XSS_LINE
 
     # The audit trail replays the values as JSON data too (never HTML).
-    events = client.get("/api/v1/audit-events?limit=100").json()
+    events = client.get("/api/v1/audit-events?limit=100").json()["items"]
     case_event = next(e for e in events if e["action"] == "case.opened")
     assert case_event["detail"]["title"] == XSS_CASE
 
@@ -705,7 +709,7 @@ def test_unsafe_uploads_rejected(client):
     assert empty.status_code == 422
 
     # Nothing leaked into the document store.
-    assert client.get("/api/v1/documents").json() == []
+    assert client.get("/api/v1/documents").json()["items"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -744,7 +748,7 @@ def test_audit_detail_never_contains_account_numbers_or_secrets(client):
     )
     assert verified.status_code == 200, verified.text
 
-    events = client.get("/api/v1/audit-events?limit=100").json()
+    events = client.get("/api/v1/audit-events?limit=100").json()["items"]
     assert len(events) >= 3
     for event in events:
         detail_blob = str(event.get("detail"))
@@ -765,7 +769,7 @@ def test_audit_detail_never_contains_account_numbers_or_secrets(client):
     add_user(org_id, "masked-fin@qa.example", "finance_officer")
     client.cookies.clear()
     assert login_as(client, "masked-fin@qa.example").status_code == 200
-    masked = client.get(f"/api/v1/vendors/{vendor['id']}/bank-accounts").json()
+    masked = client.get(f"/api/v1/vendors/{vendor['id']}/bank-accounts").json()["items"]
     assert masked and "verification_reference" not in masked[0]
     assert "verification_method" not in masked[0]
     assert FULL_ACCOUNT not in str(masked)
@@ -780,7 +784,7 @@ def test_audit_detail_never_contains_account_numbers_or_secrets(client):
     )
     detail_view = client.get(
         f"/api/v1/vendors/{vendor['id']}/bank-accounts"
-    ).json()
+    ).json()["items"]
     assert detail_view[0]["verification_reference"] == "Callback ticket INC-42"
     assert FULL_ACCOUNT not in str(detail_view)
 

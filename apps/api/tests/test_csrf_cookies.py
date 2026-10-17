@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 import app.models  # noqa: F401 â€” registers models
 from app.core.db import Base, engine
+from app.core.security import csrf_token_for
 from app.main import app as fastapi_app
 
 
@@ -40,9 +41,45 @@ def test_login_sets_session_and_csrf_cookies_with_flags(raw_client):
     jar = raw_client.cookies
     assert jar.get("veripay_session")
     assert jar.get("veripay_csrf")
+    # The readable csrf cookie must NOT carry the session credential itself:
+    # any script on the page can read it, and reading it must not yield a
+    # replayable session value (the httpOnly protection must actually hold).
+    assert jar.get("veripay_csrf") != jar.get("veripay_session")
+    # It is instead the derived per-session CSRF value (HMAC of the token).
+    assert jar.get("veripay_csrf") == csrf_token_for(jar.get("veripay_session"))
     # Cookie flags surface on the Set-Cookie headers themselves.
     raw = raw_client.get("/api/v1/auth/me")
     assert raw.status_code == 200  # cookie alone authenticates
+
+
+def test_csrf_pairing_is_bound_to_the_presented_session(raw_client):
+    """Header echo alone is not enough: the csrf value must be the derivative
+    OF THE PRESENTED session. A forged pair (injected cookie + matching
+    header) that belongs to a different session token is rejected."""
+    assert _register(raw_client).status_code == 201
+    csrf_value = raw_client.cookies.get("veripay_csrf")
+
+    # The legitimate pair (echo of the derived cookie value) still works.
+    ok = raw_client.post(
+        "/api/v1/vendors",
+        json={"display_name": "Derived CSRF Vendor"},
+        headers={"X-CSRF-Token": csrf_value or ""},
+    )
+    assert ok.status_code == 201
+
+    # Forged pair: cookie AND header both set to the derived value of a
+    # DIFFERENT token — double-submit equality holds, the session binding
+    # does not → 403.
+    forged = csrf_token_for("an-attacker-controlled-session-token")
+    assert forged != csrf_value
+    raw_client.cookies.set("veripay_csrf", forged)
+    injected = raw_client.post(
+        "/api/v1/vendors",
+        json={"display_name": "Injected CSRF Vendor"},
+        headers={"X-CSRF-Token": forged},
+    )
+    assert injected.status_code == 403
+    assert injected.json()["error"]["code"] == "forbidden"
 
 
 def test_cookie_post_without_csrf_header_is_rejected(raw_client):

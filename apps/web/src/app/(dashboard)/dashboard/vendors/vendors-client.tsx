@@ -60,7 +60,7 @@ function VendorsList({ onOpen }: { onOpen: (vendorId: string) => void }) {
 
   const vendorsQuery = useQuery({
     queryKey: ["vendors"],
-    queryFn: () => listVendors({ limit: 100 }),
+    queryFn: async () => (await listVendors({ limit: 100 })).items,
   });
 
   const [search, setSearch] = useState("");

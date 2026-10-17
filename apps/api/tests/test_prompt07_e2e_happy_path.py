@@ -1,4 +1,4 @@
-"""Prompt-07 QA — E2E happy path in ONE test.
+﻿"""Prompt-07 QA — E2E happy path in ONE test.
 
 The whole product story on a real backend (TestClient, no mocks):
 register org → login (cookies+CSRF) → create vendor → register bank account
@@ -192,7 +192,7 @@ def test_full_happy_path_end_to_end(client, tmp_path):
     document_id = document["id"]
 
     # -- 8. extraction fields exist with evidence spans + confidence (R3) ----
-    fields = client.get(f"/api/v1/documents/{document_id}/fields").json()
+    fields = client.get(f"/api/v1/documents/{document_id}/fields").json()["items"]
     by_name = {f["field_name"]: f for f in fields}
     assert EXPECTED_FIELD_NAMES <= set(by_name), sorted(by_name)
     for name in EXPECTED_FIELD_NAMES:
@@ -324,7 +324,7 @@ def test_full_happy_path_end_to_end(client, tmp_path):
     assert closed.status_code == 200, closed.text
     assert closed.json()["status"] == "closed"
     assert closed.json()["outcome"] == "no_critical_findings"
-    actions = client.get(f"/api/v1/cases/{case_id}/actions").json()
+    actions = client.get(f"/api/v1/cases/{case_id}/actions").json()["items"]
     assert any(a["action_type"] == "decision" for a in actions)
 
     # -- 13. audit events recorded for every step -----------------------------
@@ -332,10 +332,10 @@ def test_full_happy_path_end_to_end(client, tmp_path):
     assert login(client, username=OWNER_EMAIL, password=PASSWORD).status_code == 200
     events = client.get("/api/v1/audit-events?limit=100")
     assert events.status_code == 200, events.text
-    recorded_actions = {e["action"] for e in events.json()}
+    recorded_actions = {e["action"] for e in events.json()["items"]}
     missing = EXPECTED_AUDIT_ACTIONS - recorded_actions
     assert not missing, f"missing audit actions: {missing}"
-    for event in events.json():
+    for event in events.json()["items"]:
         assert event["occurred_at"]
         assert isinstance(event["detail"], dict)
         # Provenance travels with the event (docs/DATABASE.md §15).

@@ -145,3 +145,58 @@ Related: [ARCHITECTURE.md](ARCHITECTURE.md) · [DATABASE.md](DATABASE.md) · [AP
   HTTP on this machine; 72/72 pytest; frontend build green.
 - Guardrails: R1-R6 honored (no auto-approval code path exists; invoices never
   approve accounts; EVC NULL; no genuineness vocabulary anywhere).
+
+### Prompts 01–07 delivered after the phase ladder (this run; recorded 2026-10-17)
+
+The owner switched delivery to a numbered prompt series (00–07); the mapping
+and status live in [MASTER_PLAN.md](MASTER_PLAN.md). Deviations from THIS plan
+that the series introduced:
+
+- **Delivery model changed:** the 1–8 phase ladder was superseded by the
+  owner's prompt series. Phases 2–6 effectively landed together as prompts
+  01–05; Phase 7 split into "Azure plan (prompt 06, approval-gated)" and
+  "QA/Docker/cloud (prompt 07, partial)"; Phase 8 hardening landed early
+  inside prompt 07's security/functional test modules. This file's phase
+  sections remain the original acceptance contract for each area.
+- **Extraction (Phase 2 area):** OCR default changed from `stub` to
+  `text_layer` — PDFs with a real embedded text layer are read directly, so
+  the stub is only the fallback (`app/core/config.py`). ARCHITECTURE.md §6's
+  configuration matrix still says `stub` and should be read with this note.
+  Three more adapters exist (`text_layer`, `tesseract` — optional binary,
+  `azure` — Azure Document Intelligence coded against the F0 contract but
+  never live). Extraction-quality validation is deliberately separate from
+  fraud signals (`extraction/validation.py` — "NOT fraud signals").
+- **Retrieval (new, not in this plan):** Prompt-03 added a whole `retrieval`
+  module (evidence search, five relationship families, trust tiers, hybrid
+  RRF, `GET /invoices/{id}/evidence`) plus migration `0002` for **optional**
+  pgvector enablement (off by default, never required). The plan's evidence
+  step (§4 of the phase list) was read-only aggregation; the retrieval layer
+  extends it with ranked, citable search.
+- **EVC (Phase 4 area):** this plan's Phase 4 says "`evc` stays NULL — Phase 4
+  later refines the EVC concept itself". Prompt-04 delivered EVC v1 within
+  this run: `fraud_assessments.evc` is now populated on every assessment
+  (policy `app/modules/fraud/policy_v1.json`, six weighted features with
+  uncertainty states, invariant floors checked at load). DATABASE.md §13 and
+  ARCHITECTURE.md §10 already describe the shipped structure.
+- **Migration chain:** the single squashed `0001_full_schema` gained two
+  follow-ups — `0002_retrieval_optional_pgvector` (no-op on SQLite) and
+  `0003_evc_review_action_case_nullable` (review_actions.case_id nullable for
+  case-less override records). Re-verified this run: offline `--sql` (SQLite
+  **and** PostgreSQL dialects), scratch-SQLite upgrade→downgrade→upgrade,
+  `alembic check` clean.
+- **PostgreSQL-dialect offline SQL now works:** earlier TESTING.md §5.1
+  recorded `ModuleNotFoundError: No module named 'psycopg'`. `psycopg 3.3.6`
+  is now in the venv and `upgrade head --sql` emits PG-dialect SQL (verified
+  this run). No PostgreSQL **server** has run anywhere yet — the CI leg is
+  still the first live PG contact.
+- **Test inventory:** 301 tests (295 passed / 6 honest skips — 1 tesseract
+  binary absent, 5 PostgreSQL-conditional retrieval), incl. the prompt07 QA
+  modules (E2E happy path, 10 functional cases, prompt-injection awareness,
+  security pass). Frontend: 14-route static build green.
+- **Seed-script docstring drift (recorded, code untouched):**
+  `scripts/seed_demo.py`'s header still describes the pre-EVC engine ("evc
+  stays NULL", "1 case", "rules-v0.1 never emits critical"). Observed run this
+  session: all 12 assessments carry EVC, and R6 auto-opened two `critical`
+  cases plus the script's one human-opened case (3 total). The script is
+  application code; this docs-only change deliberately did not edit it. The
+  demo guide documents observed behavior.

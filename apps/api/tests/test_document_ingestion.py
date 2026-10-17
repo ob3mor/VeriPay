@@ -26,7 +26,7 @@ def test_valid_pdf_uploads_and_processes_inline(client):
     assert body["job_status"] == "completed"
     assert body["deduplicated"] is False
     # The stub OCR reads nothing â€” honest empty extraction.
-    fields = client.get(f"/api/v1/documents/{body['id']}/fields").json()
+    fields = client.get(f"/api/v1/documents/{body['id']}/fields").json()["items"]
     assert fields == []
 
 
@@ -66,7 +66,7 @@ def test_download_is_protected_and_tenant_scoped(client):
     assert register_second_org(client).status_code == 201
     cross = client.get(f"/api/v1/documents/{document_id}/file")
     assert cross.status_code == 404
-    listing = client.get("/api/v1/documents").json()
+    listing = client.get("/api/v1/documents").json()["items"]
     assert document_id not in [d["id"] for d in listing]
 
 

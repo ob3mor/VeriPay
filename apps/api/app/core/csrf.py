@@ -3,10 +3,15 @@
 Threat model: a session cookie is *ambient authority* — a malicious page
 could make the victim's browser send it along. Two independent defenses:
 
-1. **Token check** (double submit): a mutating request that authenticates via
-   the session cookie must carry header ``X-CSRF-Token`` equal to the
-   readable ``veripay_csrf`` cookie. A cross-origin attacker can force the
-   cookies to travel but cannot read them, so it cannot echo the token.
+1. **Token check** (double submit, session-bound): a mutating request that
+   authenticates via the session cookie must carry header ``X-CSRF-Token``
+   equal to the readable ``veripay_csrf`` cookie, AND that cookie must be the
+   HMAC-derived CSRF value of the PRESENTED session token
+   (``core/security.csrf_token_for``). A cross-origin attacker can force the
+   cookies to travel but cannot read them, so it cannot echo the token; a
+   script that CAN read ``veripay_csrf`` (XSS, injected JS) obtains only the
+   HMAC derivative — the httpOnly session value it was derived from stays
+   unreadable, and the derivative alone validates nothing.
 2. **Origin check**: when the browser supplies ``Origin``/``Referer`` (it
    does on cross-site and same-site POSTs), their origin must be in the CORS
    allowlist.
@@ -17,6 +22,7 @@ not apply. Pre-auth endpoints (login/register/refresh) skip the token check
 (no session yet) but still get the Origin check.
 """
 
+import hmac
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
@@ -30,6 +36,7 @@ from app.core.config import (
     get_settings,
 )
 from app.core.errors import error_payload
+from app.core.security import csrf_token_for
 
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -65,13 +72,21 @@ class CsrfMiddleware(BaseHTTPMiddleware):
                     )
 
             via_bearer = "authorization" in request.headers
-            if not via_bearer and SESSION_COOKIE_NAME in request.cookies:
+            raw_session = request.cookies.get(SESSION_COOKIE_NAME)
+            if not via_bearer and raw_session is not None:
                 header_token = request.headers.get(CSRF_HEADER_NAME)
                 cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
                 if (
                     not header_token
                     or not cookie_token
-                    or header_token != cookie_token
+                    # Double submit: header echoes the readable cookie...
+                    or not hmac.compare_digest(header_token, cookie_token)
+                    # ...and the cookie is the derived CSRF value OF THE
+                    # PRESENTED session — an injected or foreign csrf cookie
+                    # value does not pair with someone else's session.
+                    or not hmac.compare_digest(
+                        cookie_token, csrf_token_for(raw_session)
+                    )
                 ):
                     return JSONResponse(
                         status_code=403,

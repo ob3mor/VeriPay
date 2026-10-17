@@ -1,8 +1,30 @@
 """Schemas for procurement, fraud, cases, and audit surfaces."""
 
 import uuid
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
+
+
+# -------------------------------------------------------- list envelope ---
+class PaginationOut(BaseModel):
+    """The docs/API.md §3 pagination block echoed back to the client."""
+
+    limit: int
+    offset: int
+    total: int
+
+
+ModelT = TypeVar("ModelT")
+
+
+class PageOut(BaseModel, Generic[ModelT]):
+    """The docs/API.md §3 list envelope — EVERY list endpoint (Phase 2+)
+    returns ``{"items": [...], "pagination": {limit, offset, total}}``
+    (docs/API.md §5 rule 5: "Every list route ... uses the §3 envelope")."""
+
+    items: list[ModelT]
+    pagination: PaginationOut
 
 
 # -------------------------------------------------------- purchase orders ---

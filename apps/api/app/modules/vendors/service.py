@@ -230,18 +230,19 @@ def revoke_bank_account(
 
 
 def list_bank_accounts(
-    db: Session, *, org_id: object, vendor_id: object
-) -> list[VendorBankAccount]:
-    return list(
-        db.scalars(
-            select(VendorBankAccount)
-            .where(
-                VendorBankAccount.organization_id == org_id,
-                VendorBankAccount.vendor_id == vendor_id,
-            )
-            .order_by(VendorBankAccount.created_at.desc())
-        )
+    db: Session, *, org_id: object, vendor_id: object, limit: int, offset: int
+) -> tuple[list[VendorBankAccount], int]:
+    base = select(VendorBankAccount).where(
+        VendorBankAccount.organization_id == org_id,
+        VendorBankAccount.vendor_id == vendor_id,
     )
+    total = len(db.scalars(base).all())
+    rows = db.scalars(
+        base.order_by(VendorBankAccount.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    return list(rows), total
 
 
 def find_approved_account_by_fingerprint(
@@ -304,14 +305,21 @@ def get_change_request(
 
 
 def list_change_requests(
-    db: Session, *, org_id: object, vendor_id: object | None = None
-) -> list[BankAccountChangeRequest]:
+    db: Session, *, org_id: object, vendor_id: object | None = None,
+    limit: int, offset: int,
+) -> tuple[list[BankAccountChangeRequest], int]:
     query = select(BankAccountChangeRequest).where(
         BankAccountChangeRequest.organization_id == org_id
     )
     if vendor_id is not None:
         query = query.where(BankAccountChangeRequest.vendor_id == vendor_id)
-    return list(db.scalars(query.order_by(BankAccountChangeRequest.created_at.desc())))
+    total = len(db.scalars(query).all())
+    rows = db.scalars(
+        query.order_by(BankAccountChangeRequest.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    return list(rows), total
 
 
 def _decide_change_request(
@@ -410,14 +418,17 @@ def create_contact(
     return contact
 
 
-def list_contacts(db: Session, *, org_id: object, vendor_id: object) -> list[VendorAuthorizedContact]:
-    return list(
-        db.scalars(
-            select(VendorAuthorizedContact)
-            .where(
-                VendorAuthorizedContact.organization_id == org_id,
-                VendorAuthorizedContact.vendor_id == vendor_id,
-            )
-            .order_by(VendorAuthorizedContact.is_primary.desc())
-        )
+def list_contacts(
+    db: Session, *, org_id: object, vendor_id: object, limit: int, offset: int
+) -> tuple[list[VendorAuthorizedContact], int]:
+    base = select(VendorAuthorizedContact).where(
+        VendorAuthorizedContact.organization_id == org_id,
+        VendorAuthorizedContact.vendor_id == vendor_id,
     )
+    total = len(db.scalars(base).all())
+    rows = db.scalars(
+        base.order_by(VendorAuthorizedContact.is_primary.desc())
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    return list(rows), total

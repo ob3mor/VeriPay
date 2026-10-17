@@ -1,221 +1,232 @@
 # VeriPay — Testing & Verification
 
-Status: reflects the repo as of 2026-10-17 · every result below was produced by running the named command on this machine on that date, unless explicitly marked otherwise.
-Related: [ARCHITECTURE.md](ARCHITECTURE.md) (§2 invariants, §9 testing) · [API.md](API.md) · [DEPLOYMENT_LOCAL.md](DEPLOYMENT_LOCAL.md) · [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+Status: **current as of 2026-10-17 (prompts 00–07 run)** · every result below was produced by running the named command on this machine on that date, unless explicitly marked otherwise.
+Related: [MASTER_PLAN.md](MASTER_PLAN.md) (per-phase gates) · [ARCHITECTURE.md](ARCHITECTURE.md) (§2 invariants, §9 testing) · [LIMITATIONS.md](LIMITATIONS.md) (what these checks do NOT cover) · [DEPLOYMENT_LOCAL.md](DEPLOYMENT_LOCAL.md) · [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 
-Environment the checks ran in: Windows 11, cmd.exe, Python 3.12 (project venv at `apps/api/.venv`), Node 25 + npm 11. **Docker is not installed and WSL is unavailable** — everything that requires Docker/PostgreSQL/MinIO is marked as not run, not as passed.
+Environment the checks ran in: Windows 11, cmd.exe, Python 3.12 (project venv at `apps/api/.venv`), Node 25 + npm 11. **Docker is not installed and WSL is unavailable** (re-verified this run: `docker --version` → `'docker' is not recognized…`; `wsl --status` → "The Windows Subsystem for Linux is not installed") — everything that requires Docker/PostgreSQL/MinIO is marked **not run**, never passed.
 
-The backend interpreter is the **venv**, not the global Python: the global Python 3.12 on this machine has no `pytest` and no `alembic` installed (`python -m pytest` → `No module named pytest`; `python -m alembic` → `No module named alembic`). All commands below use `apps\api\.venv\Scripts\python.exe`.
+The backend interpreter is the **venv**, not the global Python: the global Python 3.12 on this machine has no `pytest`/`alembic` installed. All commands below use `apps\api\.venv\Scripts\python.exe`.
 
 ---
 
 ## 1. Gate results (summary)
 
-| Gate | Command | Pipeline result (reported) | Re-run here 2026-10-17 | Result |
-|---|---|---|---|---|
-| Backend pytest | see §2 | exit 0 | **yes** | **42 passed**, 1 third-party warning, exit 0 |
-| Frontend production build | see §3 | exit 0 | **yes** | **11 routes, all static**, exit 0 |
-| Contracts tsc | see §4 | passed | **yes** | exit 0, no output |
+| Gate | Command (short form) | Result (this run, 2026-10-17) |
+|---|---|---|
+| Backend pytest | `.venv\Scripts\python.exe -m pytest -q` in `apps\api` | **295 passed, 6 skipped** (301 collected), 3 warnings, 181.4 s, exit 0 |
+| Frontend production build | `node apps\web\node_modules\next\dist\bin\next build apps\web` | exit 0 — **14 routes, all static** |
+| Contracts TypeScript | `node node_modules\typescript\bin\tsc --noEmit -p packages\api-contracts` | exit 0 |
+| Alembic offline SQL | `…alembic -c apps\api\alembic.ini upgrade head --sql` | exit 0 (SQLite dialect, 506 lines) **and** PG dialect (485 lines, `PostgresqlImpl`) |
+| Alembic scratch cycle | `VERIPAY_DATABASE_URL=…scratch.db` upgrade→downgrade→upgrade | exit 0, `current` = `0003 (head)`, 20 domain tables |
+| Alembic drift check | `alembic check` (against a migrated scratch DB) | "No new upgrade operations detected." |
+| Compose YAML syntax | PyYAML `safe_load` | parses; 7 services — **syntax check only, NOT a compose check** (§6) |
+| CI workflow YAML | PyYAML `safe_load` | parses; jobs `backend-tests`, `frontend-build`, `contracts-typecheck`, `compose-yaml-validate` |
+| Demo seed | `python scripts\seed_demo.py` (scratch DB) | 12 invoices, EVC 12/12, 3 cases, 15 audit events (§7) |
+| `docker compose config` / `up` | — | **NEVER RUN — Docker absent** (honesty header; §6) |
 
-All three pipeline gates were independently reproduced locally in this session; the outputs recorded in §2–§4 are from those runs.
+History: the gate counts evolved 42 (Phase 1) → 72 (Phase 2 backend brief) → **301 collected / 295 passing** now; prior full inventories are in git history and §10.
 
 ---
 
 ## 2. Backend test suite (pytest)
 
-**Command** (from repo root, cmd.exe):
+**Command** (from `apps\api`):
 
 ```bat
 cd /d C:\Users\Xander\Desktop\VeriPay\apps\api
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-**Result (2026-10-17):**
+**Result (2026-10-17, this run):**
 
 ```
-..........................................                               [100%]
-42 passed, 1 warning in 13.49s
+295 passed, 6 skipped, 3 warnings in 181.36s (0:03:01)
 exit code 0
 ```
 
-The one warning is a third-party deprecation inside `fastapi`'s own `testclient` import (`StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated`), not VeriPay code.
+Warnings are third-party only: a Starlette deprecation inside FastAPI's `testclient` import, and an Alembic `path_separator` deprecation raised by `tests/test_migrations.py`.
 
-**Test environment:** `tests/conftest.py` pins `VERIPAY_ENV=test` and an in-memory SQLite (`sqlite://` with `StaticPool`) **before** any `app` import (settings and the engine are built at import time — `app/core/db.py:93`), creates and drops the schema around every test, and resets the in-process throttle/lockout/revoked-token registries between tests (`conftest.py:34-45`). Throttle limits are lowered for tests (login 10/min, register 4/min) so the rate-limit tests can exhaust real windows.
+**Test environment:** `tests/conftest.py` pins `VERIPAY_ENV=test` and a file-backed SQLite (WAL) before any `app` import, creates/drops the schema per test, resets in-process throttle/lockout/revocation state, and honors a preset `VERIPAY_DATABASE_URL` (which is how the CI PostgreSQL leg runs the same suite — not executed locally; §5/§9).
 
-**Inventory** — 42 tests across 13 test modules (plus `conftest.py` fixtures and `helpers.py` utilities; `pytest --collect-only -q` → `42 tests collected`):
+### 2.1 The 6 skips — all honest environment skips (verified with `-rs`)
 
-| File | Tests | Behaviors covered |
+```
+SKIPPED [1] tests\test_ocr_providers.py:92: tesseract binary not installed
+SKIPPED [1] tests\test_retrieval_pg.py:42: requires a live PostgreSQL engine — runs on the CI
+           PostgreSQL leg; the no-Docker dev machine runs SQLite so this skips
+SKIPPED [1] tests\test_retrieval_pg.py:55  (same reason)
+SKIPPED [1] tests\test_retrieval_pg.py:71  (same reason)
+SKIPPED [1] tests\test_retrieval_pg.py:93  (same reason)
+SKIPPED [1] tests\test_retrieval_pg.py:109 (same reason)
+```
+
+- **Tesseract (1):** the pixel-OCR adapter is fully coded (`app/adapters/ocr/tesseract.py`) and its absence path is itself tested (the inverse test at `test_ocr_providers.py:104` RUNS here and asserts a clean `TesseractUnavailableError`).
+- **PostgreSQL-conditional retrieval (5):** `tests/test_retrieval_pg.py` proves the pg/trigram backend selection and pgvector path on a real server; skipped on SQLite by design (`pytestmark`, `test_retrieval_pg.py:19-28`). First contact with a live PostgreSQL happens in the CI backend job.
+
+### 2.2 What the suite covers (module map)
+
+| Area | Modules (all green this run) | Invariant coverage |
 |---|---|---|
-| `tests/test_health.py` | 1 | `GET /api/v1/health` public, 200 with `status`/`service`/`version` (API.md §4 shape). |
-| `tests/test_auth_flow.py` | 6 | register→login→me happy path; duplicate email → 409 `conflict`; missing fields → 422 versioned `validation_error` envelope; unknown email and wrong password produce **identical** 401s (no account enumeration); `/auth/me` requires a token; `users.last_login_at` updated on login. |
-| `tests/test_token_security.py` | 4 | missing, garbage, tampered, and expired bearer tokens all → 401 `unauthorized` envelope. |
-| `tests/test_auth_logout.py` | 4 | `POST /auth/logout` revokes the presented token's jti server-side (later `/me` → 401); revocation is scoped to that token only (other tokens keep working); logout requires auth; logout writes a `user.logout` audit row. |
-| `tests/test_auth_throttle.py` | 7 | per-IP sliding windows on register (409 duplicate-email attempts still consume budget) and login (distinct emails, so the per-account lockout is not what trips); failed-login lockout per (IP, email) rejects even the **correct** password while active; a successful login resets the failure streak; lockout is per email (other accounts unaffected); sliding-window burst→refuse→recover; lockout records, recovers after the window, and clears. |
-| `tests/test_auth_disabled.py` | 3 | a `disabled` user cannot log in (401, generic message), the failure is audited (`user.login_failed`, never a success row), and the disabled user's previously issued valid token is rejected on every request. |
-| `tests/test_audit.py` | 3 | `audit_logs` rows written for register, successful login, **and** failed login with org/actor/entity/detail; failed login for an unknown email carries no tenant; `password_hash` never appears in audit detail. |
-| `tests/test_audit_context.py` | 3 | audit events carry `ip`/`user_agent`/`request_id`; the failed-login audit `request_id` matches the error envelope's; the error envelope carries the `X-Request-ID` header value. |
-| `tests/test_org_scoping.py` | 1 | two organizations register; each principal's `/auth/me` reports only its own org (slug asserted); JWT `org_id`/`sub` claims are distinct per org — the tenant comes from the token only (API.md §5 rules 1–2). |
-| `tests/test_password_storage.py` | 1 | `users.password_hash` is a bcrypt hash (`$2b$…`), never plaintext; `verify_password` accepts the true password and rejects a wrong one. |
-| `tests/test_config.py` | 5 | dev defaults accepted; production refuses the built-in dev secret and short secrets (`ValidationError`); a strong secret is accepted; spelling variants (`PRODUCTION`, `Production`, `PROD`, `prod`, whitespace) cannot bypass the production guard; non-production variants normalize without becoming production. |
-| `tests/test_storage_local.py` | 3 | `LocalFilesystemProvider` contract: roundtrip save/open/delete with `exists`, `StorageObjectNotFound` on missing keys, delete idempotence; tenant-prefixed key builder; `../` path traversal rejected with `ValueError` and nothing written outside the root; the settings factory defaults to the local provider. |
-| `tests/test_openapi_snapshot.py` | 1 | the committed `apps/api/openapi.json` snapshot equals the live FastAPI schema (drift guard, so type generation and static builds never need a running backend — API.md §1). |
-| `tests/helpers.py` | — | shared fixtures/helpers (`register`, `login`, `bearer`, `db_query`); not tests. |
-
-**What the suite proves about the six business invariants (ARCHITECTURE §2):** Phase 1 implements identity, tenancy, audit, and the storage seam only — the implemented API surface is exactly `/health` + `/auth/{register,login,me,logout}` (`app/api/v1/routes/` contains only `auth.py` and `health.py`). Accordingly:
-
-- **R1 (never auto-authorize payments) / R2 (never claim an invoice is genuine):** trivially satisfied today — no payment or genuineness concept exists anywhere in the code; there is nothing to test yet, and the suite does not test it.
-- **R3 (uncertain OCR), R4 (absence ≠ fraud), R5 (bank-account verification), R6 (mandatory human review):** the corresponding modules (`documents`, `extraction`, `fraud`, `cases`, `vendors`) do not exist yet (`app/modules/` contains only `audit` and `auth`), so none of these invariants has direct test coverage yet. Their test obligations arrive with Phases 2–5 per IMPLEMENTATION_PLAN.md §3.
-- What **is** covered today that later phases build on: org-scoped identity from the token (test_org_scoping), append-only audit trail with request correlation (test_audit*, the Phase-6 R5/R6 evidence base), no-plaintext-password storage, token revocation, and abuse throttling.
+| Identity & sessions | `test_auth_flow`, `test_auth_logout`, `test_auth_throttle`, `test_auth_disabled`, `test_token_security`, `test_csrf_cookies`, `test_password_storage`, `test_config` | no account enumeration; server-side revocation; per-(IP,email) lockout; CSRF double-submit + Bearer exemption; production refuses dev secret |
+| Tenancy & roles | `test_org_scoping`, `test_roles_and_isolation`, `test_tenant_isolation` | tenant from token only; cross-org 404; 4-role matrix per API.md §5 |
+| Documents & processing | `test_document_ingestion`, `test_document_edges`, `test_processing_idempotent`, `test_processing_jobs_api` | magic bytes, mime mismatch, size cap, per-org SHA-256 dedup, protected cross-tenant download, idempotent job transitions/retry |
+| Extraction (Prompt-02) | `test_extraction_pipeline`, `test_extraction_fields`, `test_extraction_binding`, `test_extraction_validation`, `test_extraction_evaluation`, `test_field_review`, `test_ocr_providers` | **R3**: below-threshold/NULL confidence → `unverified_input`, never a mismatch; manual field review; honest OCR fallbacks |
+| Fraud & EVC (Prompt-04) | `test_fraud_rules`, `test_evc_scenarios` | **R2/R4/R5**: no genuineness vocabulary; absence capped medium; `bank_account_unverified` high floor; EVC 9 brief scenarios; result states force `needs_review` |
+| Retrieval (Prompt-03) | `test_retrieval_normalize`, `test_retrieval_search`, `test_retrieval_hybrid`, `test_retrieval_graph`, `test_retrieval_resolution`, `test_retrieval_evidence_api`, `test_retrieval_evaluation` (7 green on SQLite) + `test_retrieval_pg` (5 skips, §2.1) | org-scoped evidence; trust tiers; citable provenance; synthetic-labeled metrics |
+| Procurement | `test_line_items`, `test_disposition_and_matches` | duplicates are signals, never 409; human disposition of matches/findings |
+| Cases (R6) | prompt07 functional cases + `test_field_review` flows | critical ⇒ auto-case; close needs human outcome + summary (422 otherwise) |
+| QA (Prompt-07) | `test_prompt07_e2e_happy_path` (one full story incl. audit-per-step), `test_prompt07_functional_cases` (the brief's 10 cases), `test_prompt07_prompt_injection` (injected instructions in document text change nothing), `test_prompt07_security` (role sweep, SQLi probes, XSS round-trip, unsafe uploads, sensitive-logging) | executable line-by-line review of ARCHITECTURE §8 |
+| Audit & infra | `test_audit`, `test_audit_context`, `test_audit_listing`, `test_stats_dashboard`, `test_storage_local`, `test_openapi_snapshot`, `test_migrations`, `test_health` | append-only audit with ip/UA/request-id; OpenAPI drift guard; migration cycle |
 
 ---
 
 ## 3. Frontend production build (static export)
 
-**Command** (from repo root — this is the quality gate documented in `apps/web/README.md:16-19`; it avoids npm-workspaces hoisting issues):
+**Command** (from repo root; the designated quality gate):
 
 ```bat
 node apps\web\node_modules\next\dist\bin\next build apps\web
 ```
 
-**Result (2026-10-17):** exit 0.
+**Result (2026-10-17, this run):** exit 0.
 
 ```
 ▲ Next.js 16.4.2 (Turbopack)
-✓ Compiled successfully in 433ms
+✓ Compiled successfully in 827ms
   Running TypeScript ...
-  Finished TypeScript in 1816ms ...
-✓ Generating static pages using 12 workers (11/11) in 945ms
+  Finished TypeScript in 1901ms ...
+✓ Generating static pages using 16 workers (15/15) in 1102ms
 
-Route (app)                     — all 11 marked ○ (Static) prerendered as static content
-  / , /_not-found , /dashboard , /dashboard/investigations , /dashboard/invoices ,
-  /dashboard/settings , /dashboard/vendors , /icon.svg , /login , /register
+Route (app)                — all ○ (Static) prerendered
+  / , /_not-found , /dashboard , /dashboard/audit , /dashboard/cases ,
+  /dashboard/cases/detail , /dashboard/investigations , /dashboard/invoices ,
+  /dashboard/invoices/upload , /dashboard/settings , /dashboard/vendors ,
+  /icon.svg , /login , /register
 ```
 
-What it covers: full TypeScript compilation of `apps/web`, and a successful static export (`output: "export"`) — the exact artifact Azure Static Web Apps serves (PROFILE B, ADR 0004). Output lands in `apps/web/out/` (including `staticwebapp.config.json` copied from `public/`).
-
-Equivalent workspace form: `npm run build -w @veripay/web` (apps/web/package.json:8). Not separately re-run; the gate command above is the one the README designates.
-
-**Typecheck-only form** (also verified, exit 0):
-
-```bat
-cd /d C:\Users\Xander\Desktop\VeriPay\apps\web
-npm run typecheck
-```
-
-**Dev-server smoke (manual, this session):** `npm run dev -w @veripay/web` from the repo root, then `curl` → HTTP 200 on `/`, `/login`, `/dashboard`. This is a manual probe, not an automated test.
+Output lands in `apps/web/out/` (including `public/staticwebapp.config.json` — the CSP/security-headers file Azure Static Web Apps serves; **the dev server serves no such headers**, LIMITATIONS.md §7). Equivalent workspace form: `npm run build -w @veripay/web` (not separately re-run this session; the command above is the designated gate).
 
 ---
 
 ## 4. API contracts (TypeScript)
 
-**Command** (from repo root — exact form used by the pipeline, `package.json:9`):
+**Command** (from repo root, exact pipeline form):
 
 ```bat
 node node_modules\typescript\bin\tsc --noEmit -p packages\api-contracts
 ```
 
-**Result (2026-10-17):** exit 0, no output (clean).
+**Result (2026-10-17, this run):** exit 0.
 
-npm-script form `npm run typecheck:contracts` — also run, exit 0.
+Covers `packages/api-contracts` (TS mirrors of the REST contract). It checks types compile; runtime agreement with the backend is guarded by the OpenAPI snapshot drift test (`tests/test_openapi_snapshot.py`, green in §2).
 
-What it covers: `packages/api-contracts` (hand-mirrored TS types for the REST API, per its package.json a scaffolding placeholder to be replaced by OpenAPI-generated types). It checks types compile; it does **not** check runtime agreement with the backend (that is the OpenAPI snapshot drift test, §2, plus future typegen per API.md §1).
+**API surface size (counted from `apps/api/openapi.json` this run):** **43 paths / 54 operations**, plus `GET /openapi.json` + `/docs` served at the app root (FastAPI defaults — NOT under `/api/v1/…`; known deviation, API.md §1, recorded since the Phase-1 smoke and still true).
 
 ---
 
 ## 5. Alembic migration checks
 
-### 5.1 Offline SQL emission (`--sql`) — verified, SQLite dialect
+Three migrations ship: `0001_full_schema` (canonical v2, 20 tables) → `0002_retrieval_optional_pgvector` (off by default; no-op without PG) → `0003_evc_review_action_case_nullable`.
 
-**Command** (from repo root):
+### 5.1 Offline SQL — both dialects now verified
 
 ```bat
 apps\api\.venv\Scripts\python.exe -m alembic -c apps\api\alembic.ini upgrade head --sql
 ```
 
-**Result (2026-10-17):** exit 0 — 408 lines of static SQL covering all six migrations (`0001_core_identity` → `0006_audit`), ending in the `alembic_version` bump to `'0006'`.
+- Default (SQLite dialect): exit 0 — **506 lines**, `Running upgrade -> 0001 … 0002 -> 0003`, ends `UPDATE alembic_version SET version_num='0003'`.
+- **PostgreSQL dialect** (`set VERIPAY_DATABASE_URL=postgresql+psycopg://u:p@localhost:5432/veripay` before the same command): exit 0 — **485 lines**, log shows `Context impl PostgresqlImpl` + `BEGIN;`. This is NEW: `psycopg 3.3.6` is now installed in the venv, resolving the old "cannot emit PG-dialect SQL" caveat. It validates dialect rendering **only** — no PostgreSQL server was contacted.
 
-**Dialect caveat (verified failure, documented honestly):** the SQL emitted is **SQLite-dialect** SQL, because `alembic/env.py:26-27` takes the URL from app settings, whose default is `sqlite:///./veripay.db` (config.py:29). Attempting to emit PostgreSQL-dialect SQL by setting `VERIPAY_DATABASE_URL=postgresql+psycopg://…` **fails on this machine**:
-
-```
-sqlalchemy.exc.ModuleNotFoundError: No module named 'psycopg'
-```
-
-Root cause: `alembic/env.py:17-19` imports `app.models` → `app.core.db`, and `app/core/db.py:93` creates the engine **at import time**, so the DBAPI driver is required even in offline mode (which never connects). `psycopg` is not installed in the venv (`pip list` confirms). Consequence: **this check validates migration structure on SQLite only; PostgreSQL-dialect SQL and any live PG migration have never been produced or run** — the first real PostgreSQL validation must happen on a Docker/CI machine (PROFILE A).
-
-### 5.2 Migration executability smoke (live upgrade, scratch SQLite) — verified
-
-**Command** (from repo root; scratch file outside the repo):
+### 5.2 Scratch-SQLite executability cycle — verified
 
 ```bat
-set VERIPAY_DATABASE_URL=sqlite:///C:/Users/Xander/AppData/Local/Temp/veripay_scratch_mig.db
+set VERIPAY_DATABASE_URL=sqlite:///C:/Users/Xander/AppData/Local/Temp/veripay_docs_scratch.db
+apps\api\.venv\Scripts\python.exe -m alembic -c apps\api\alembic.ini upgrade head
+apps\api\.venv\Scripts\python.exe -m alembic -c apps\api\alembic.ini current        :: 0003 (head)
+apps\api\.venv\Scripts\python.exe -m alembic -c apps\api\alembic.ini downgrade base
 apps\api\.venv\Scripts\python.exe -m alembic -c apps\api\alembic.ini upgrade head
 ```
 
-**Result (2026-10-17):** exit 0. All six migrations ran (`Running upgrade -> 0001 … 0005 -> 0006`), `alembic_version` = `0006`, and the resulting schema contains exactly the expected tables: `organizations`, `users`, `documents`, `extracted_fields`, `vendors`, `vendor_trusted_accounts`, `purchase_orders`, `invoices`, `invoice_line_items`, `fraud_assessments`, `duplicate_matches`, `cases`, `case_notes`, `audit_logs` (+ `alembic_version`). This is an **executability check on SQLite, not a PostgreSQL substitute** (IMPLEMENTATION_PLAN.md §2 marks it the same way).
+Result (this run): exit 0 throughout; all three migrations up, down, and up again. Final schema: **20 domain tables** + `alembic_version` — `organizations, users, sessions, vendors, vendor_bank_accounts, vendor_authorized_contacts, bank_account_change_requests, documents, extraction_results, extraction_fields, purchase_orders, invoices, invoice_line_items, fraud_assessments, fraud_findings, evidence_matches, investigation_cases, review_actions, processing_jobs, audit_events`. This is an **executability check on SQLite, not a PostgreSQL substitute**; the first live-PG run is the CI gate (`test_migrations.py` repeats this cycle in-suite and was green in §2).
 
-The same command from inside `apps\api` (`cd apps\api && .venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head`, default URL) was also run — exit 0, `alembic current` → `0006 (head)`. This is the command DEPLOYMENT_LOCAL.md §3.2 uses, because the default URL is CWD-relative (`sqlite:///./veripay.db`): run Alembic and uvicorn **from the same directory** or you create two different databases.
+### 5.3 Model/migration drift — verified
+
+```bat
+apps\api\.venv\Scripts\python.exe -m alembic -c apps\api\alembic.ini check
+```
+
+(against the migrated scratch DB) → **"No new upgrade operations detected."** Note: `alembic check` needs a database already at head — against an unmigrated URL it fails with "Target database is not up to date" (observed before pointing it at the scratch DB).
 
 ---
 
-## 6. Compose file — syntax check only
+## 6. Compose file — YAML syntax check ONLY (honesty header)
 
-`docker compose config` has **never been executed** — Docker is not installed (`docker --version` → `'docker' is not recognized as an internal or external command`) and WSL is unavailable. The only check ever run against `infrastructure/local/docker-compose.yml` is a YAML parse (the fallback IMPLEMENTATION_PLAN.md §2 explicitly labels "a syntax check, **not** the compose check"):
+> **Honesty header:** Docker has **never** run on this machine and no VeriPay container stack has **ever** been started anywhere. `docker compose config` / `up` / `down` have never been executed. The ONLY check ever applied to `infrastructure/local/docker-compose.yml` is the YAML parse below — a syntax check, **not** the compose check, exactly as IMPLEMENTATION_PLAN.md §2 labels it.
 
 ```bat
 apps\api\.venv\Scripts\python.exe -c "import yaml; d=yaml.safe_load(open('infrastructure/local/docker-compose.yml', encoding='utf-8')); print(sorted(d['services']))"
 ```
 
-**Result (2026-10-17):** parses cleanly; services found: `api, minio, minio-init, postgres, redis`.
+**Result (2026-10-17, this run):** parses cleanly; services: `api, minio, minio-init, postgres, redis, web, worker` (7 — the compose file grew `web` and the opt-in `worker` since the Phase-1 parse).
 
-Additional structural fact (from reading the file, not from execution): the `api` service builds from `apps/api/Dockerfile`, **which does not exist** (`infrastructure/local/docker-compose.yml:74-79` documents this as deliberate — the file is owned by the backend workstream). `docker compose up --build` would fail at the api build even on a Docker-equipped machine until that Dockerfile lands.
-
----
-
-## 7. Manual API smoke (live server) — verified, with a required first step
-
-**Ordering matters: run migrations before first API start.** Verified experimentally in this session:
-
-1. Booted uvicorn against a brand-new empty SQLite file → `GET /api/v1/health` returned 200 (health touches no tables), but `POST /api/v1/auth/register` returned **500** with the versioned `internal` envelope. Server log: `sqlite3.OperationalError: no such table: users` (raised at `app/modules/auth/service.py:70`, via `app/api/v1/routes/auth.py:83`). There is no `create_all` in application code (only `tests/conftest.py:28` uses it) — schema comes from Alembic only.
-2. Ran `alembic -c alembic.ini upgrade head` against the same file (exit 0, all six migrations), restarted the server, and retried: `register` → **201**, `login` → **200**.
-
-**Verified smoke sequence** (see DEPLOYMENT_LOCAL.md §3 for the full walkthrough): `uvicorn app.main:app` serving `GET /api/v1/health` → `{"status":"ok","service":"veripay-api","version":"0.1.0"}`; `POST /api/v1/auth/register` → 201 with user/org/access_token; `POST /api/v1/auth/login` (form-encoded) → 200; `GET /api/v1/auth/me` with the bearer token → 200 with the registered user + org; `/docs` → 200.
-
-**One deviation from docs/API.md §1 found during the smoke:** the OpenAPI schema is served at `/openapi.json` (FastAPI default; verified 200), **not** at `/api/v1/openapi.json` (verified 404). The committed snapshot drift test is unaffected (it calls `app.openapi()` directly, `test_openapi_snapshot.py:12`). API.md should be corrected or the path overridden in a future change — recorded here so nobody debugs a nonexistent endpoint.
-
-**`.env` handling finding (verified):** the backend does **not** read a `.env` file on its own — `SettingsConfigDict(env_prefix="VERIPAY_", extra="ignore")` (`app/core/config.py:20`) declares no `env_file`. `uvicorn --env-file <path>` works as a loading mechanism (verified: a distinctive `VERIPAY_CORS_ORIGINS` in the file was reflected in CORS preflight responses), **but** complex fields must be JSON: `VERIPAY_CORS_ORIGINS=http://localhost:3000` (the bare-URL form shown in the root `.env.example:44`) crashes startup with `pydantic_settings.exceptions.SettingsError: error parsing value for field "cors_origins"`, while the JSON form `VERIPAY_CORS_ORIGINS=["http://localhost:3000"]` boots fine (both verified). For the no-Docker fallback no env file is needed at all — the defaults already match it (SQLite, local storage, stub OCR, CORS `localhost:3000`).
+CI runs the identical YAML-only check (`compose-yaml-validate` job). See [DEPLOYMENT_LOCAL.md §1](DEPLOYMENT_LOCAL.md) for what the stack defines and what has never been validated about it.
 
 ---
 
-## 8. Coverage gaps (honest list)
+## 7. Demo seed script (`scripts/seed_demo.py`) — verified end-to-end
 
-1. **No end-to-end tests.** There is no browser/e2e runner in the repo (no Playwright/Cypress/nightwatch anywhere, no test script in `apps/web/package.json`). The frontend is verified only by `tsc` + the production build (§3) and a manual dev-server HTTP probe. Nothing tests web ↔ API integration; the auth pages were never driven against a live backend by an automated test.
-2. **No frontend unit tests.** `apps/web` has no test runner, no test files, and no test script.
-3. **No Docker-validated compose.** `docker compose config` and any `docker compose up` have never run (Docker absent — verified). Compose is only YAML-parsed (§6), and the api service cannot build anywhere until `apps/api/Dockerfile` exists (§6). PostgreSQL, MinIO, the mc bucket init, and the worker/redis profile have never been started by anyone.
-4. **The S3/MinIO storage adapter is untested.** `app/adapters/storage/s3.py` (MinIOS3Provider) has zero test coverage: it lazily imports `boto3`, which is not installed in the venv (`pip list`), and exercising it needs a live MinIO — which needs Docker. The shared storage contract suite (roundtrip/not-found/idempotent-delete, ARCHITECTURE §7.1) currently covers only `LocalFilesystemProvider` (test_storage_local.py). The MinIO provider was written to the same protocol but has never been executed against anything.
-5. **PostgreSQL is unexercised everywhere.** pytest runs on in-memory SQLite; the migration smoke is SQLite; PostgreSQL-dialect offline SQL cannot even be emitted here (§5.1). PG-specific behavior — native UUID, JSONB, partial indexes (`postgresql_where`), `Numeric` rounding, timezone handling — is written portably (app/core/db.py:1-10 conventions) but has never run against PostgreSQL.
-6. **In-process rate-limiting/lockout/revocation state is untested across processes.** The registries (`app/core/ratelimit.py`, `app/core/token_store.py`) live in process memory (conftest.py:34-45 resets them per test). Multi-worker deployments, restarts, or any horizontally scaled deployment change their semantics; nothing tests that. Single-process uvicorn is the assumed local shape.
-7. **No CI executes these gates.** The pipeline gate results quoted in §1 were reported by the pipeline and re-run manually on this machine on 2026-10-17; there is no committed CI workflow in the repo running them automatically.
-8. **Tenant-isolation coverage is currently one endpoint deep.** test_org_scoping.py proves token-based org separation at the identity layer; the per-resource isolation matrix (API.md §5 rule 6) has no resources yet and arrives with Phases 2–6.
-9. **`.env.example` CORS line is unusable as-is** if ever loaded into the environment (§7 finding) — either fix the example to JSON-array form or add `env_file` support to Settings; recorded here because documentation-only workstreams cannot edit application code.
+**Command** (fresh scratch DB so no pre-existing dev database is touched; from repo root):
 
+```bat
+set VERIPAY_DATABASE_URL=sqlite:///C:/Users/Xander/AppData/Local/Temp/veripay_seed_demo.db
+apps\api\.venv\Scripts\python.exe scripts\seed_demo.py
+```
+
+**Result (2026-10-17, this run):** exit 0. Output tail:
+
+```
+  INV-HD-3002 tampered amount              -> risk=critical score=55
+  INV-BT-2001 DUPLICATE (altered total)    -> risk=critical score=60.2
+Seeded demo data into: sqlite:///…veripay_seed_demo.db
+Login (all demo users, fictional people):
+  admin@demo.example / finance@demo.example / reviewer@demo.example /
+  auditor@demo.example — password: VeriPay-Demo-2026!
+Investigation case: CASE-2026-0003 (Duplicate invoice number INV-BT-2001 with altered total)
+```
+
+**Verified contents of the seeded DB (queried directly after the run):** 5 vendors · 5 bank accounts (3 `approved`, 2 `pending`) · 8 POs · 12 invoices · 12 assessments with **EVC populated on all 12** · **3 investigation cases** — `CASE-2026-0001` and `CASE-2026-0002` auto-opened (`opened_by` NULL, severity `critical`, R6) and `CASE-2026-0003` human-opened (severity `high`) · 4 review actions · 15 audit events · 0 documents/extractions (the seed enters invoices manually; the upload→extraction flow is exercised in the UI or by the prompt07 E2E test).
+
+**Known docstring drift (code untouched — docs-only change):** the script's header still says "evc stays NULL" and "1 case" from the pre-EVC engine. The observed behavior above is what [DEMO_GUIDE.md](DEMO_GUIDE.md) documents.
 
 ---
 
-## Phase 2 update (2026-10-17) — 72 tests, single migration
+## 8. Live-server smoke
 
-- The suite is **72 tests** (pytest, file-backed SQLite in WAL mode):
-  `apps\api\.venv\Scripts\python.exe -m pytest apps/api/tests -q` from the
-  repo root. New coverage: cookie session lifecycle + refresh, CSRF enforcement
-  (missing/wrong header, cross-origin, Bearer exemption), the four-role matrix,
-  bank-account change control (pending → human-only approve; change requests;
-  masking), document validation (magic bytes, mime mismatch, dedup, protected
-  cross-tenant download), processing idempotency + guarded transitions, fraud
-  rules (R2/R3/R4/R5 as executable tests), tenant isolation across the domain
-  surface.
-- Migrations are a single `0001_full_schema`; CI runs offline SQL, a
-  live-scratch upgrade/downgrade cycle, and `alembic check`.
-- Frontend gate unchanged: `node apps/web/node_modules/next/dist/bin/next build apps/web`
-  (static export) plus `npm run typecheck:contracts`.
-- GitHub Actions (`.github/workflows/ci.yml`) runs all of the above on
-  push/PR: backend job (install → migrations → tests), frontend job
-  (workspaces → contracts → build), compose YAML syntax check.
+The ordering rule is unchanged and re-confirmed by the migration checks: **run `alembic upgrade head` from `apps\api` before first API start** — the app never creates tables itself; against a brand-new empty DB, `GET /api/v1/health` returns 200 but any DB-backed call fails (the Phase-1 experiment recorded in git history: `500` + `no such table: users`).
+
+The full-flow live smoke for this run is executable, automated, and green: `tests/test_prompt07_e2e_happy_path.py` drives register → cookie login → vendor → human-approved bank account (R5) → PO → synthetic invoice upload → extraction → EVC assessment → evidence retrieval → case open/close (R6) → audit-per-step against the real app (TestClient, no mocks). A manual browser walkthrough with the seeded data is in [DEMO_GUIDE.md](DEMO_GUIDE.md); it was **not** re-driven through a real browser in this docs run.
+
+---
+
+## 9. Coverage gaps (honest list)
+
+1. **PostgreSQL has never executed anything.** The suite, migrations, and retrieval PG tests all await the CI PostgreSQL leg (or any live PG). PG-dialect SQL *emits* cleanly now (§5.1), which is a rendering check, not an execution.
+2. **Docker/compose has never run.** No container of any kind has been built or started. The api/web Dockerfiles and docker-entrypoint.sh are code-inspected only.
+3. **MinIO/S3 storage adapter is untested.** `app/adapters/storage/s3.py` lazily imports `boto3` (not installed) and needs a live MinIO (needs Docker) — zero executions.
+4. **Azure Document Intelligence adapter is coded, never live.** `app/adapters/ocr/azure_di.py` (F0 page-cap contract, quota mapping, retries) is unit-testable via client injection but has never talked to the service; gated on Prompt 06.
+5. **No browser-level e2e.** No Playwright/Cypress in the repo; web↔API integration is covered at TestClient level (prompt07 E2E) and by the build; a real browser was not driven by an automated test.
+6. **In-process rate-limit/lockout/revocation state** is per-process (`conftest.py` resets it); multi-worker/horizontal semantics untested.
+7. **Synthetic metrics are not real-world performance.** Retrieval metrics and the extraction evaluation run over generated fixtures (`tests/fixtures`, `scripts/generate_fixtures.py`) — labeled synthetic by design; they measure correctness of the metric code, not production accuracy.
+8. **Security headers exist only in the SWA config.** `apps/web/out` is served with CSP/HSTS/etc. **only** when hosted via Azure Static Web Apps (`public/staticwebapp.config.json`); `next dev`/static hosting elsewhere serves none (LIMITATIONS.md §7).
+9. **CI gates are pipeline-reported.** `.github/workflows/ci.yml` defines the PG leg, builds, and YAML checks; this document records what ran **here**. CI execution is owner-triggered on push.
+
+---
+
+## 10. Historical gate results (for provenance)
+
+| Date | Suite | Result | Notes |
+|---|---|---|---|
+| 2026-10-17 (Phase 1) | 42 tests | 42 passed | identity/tenancy/audit/storage only; localStorage-token era |
+| 2026-10-17 (Phase 2 brief) | 72 tests | 72 passed | cookie+CSRF, RBAC, documents, processing, rules-v0.1; single migration |
+| 2026-10-17 (pre-flight, prompts 02–05) | 299 tests | 293 passed / 6 skipped | reported by the read-only Azure pre-flight |
+| **2026-10-17 (this run)** | **301 tests** | **295 passed / 6 skipped** | + prompt07 QA growth; all gates in §1 re-executed here |

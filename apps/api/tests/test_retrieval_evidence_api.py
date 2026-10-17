@@ -167,6 +167,22 @@ def test_evidence_readable_by_all_authenticated_roles(client):
         assert response.status_code == 200, role
 
 
+def test_evidence_never_echoes_the_raw_remittance_account(client):
+    """docs/API.md §5.8 / retrieval schemas header: full account numbers never
+    appear in any response. The raw remittance account seeds the FUZZY SEARCH
+    server-side; the meta echo carries the masked last4 form only — exactly
+    like the ordinary invoice read (remittance_account_last4)."""
+    seed = rh.seed_retrieval_org(client)
+    response = _get(client, seed["invoice_nour_id"])
+    assert response.status_code == 200, response.text
+    # The raw IBAN appears NOWHERE in the response body (seeds, explanations,
+    # provenance, titles — nothing).
+    assert rh.NOUR_IBAN not in response.text
+    # The masked seed documents what was searched without exposing the value.
+    masked = "remittance_account_last4:" + rh.NOUR_IBAN[-4:]
+    assert masked in response.json()["meta"]["seeds"]
+
+
 def test_evidence_reports_gaps_and_contradictions(client):
     seed = rh.seed_retrieval_org(client)
     # Zahra: no PO, no accounts → missing gaps.

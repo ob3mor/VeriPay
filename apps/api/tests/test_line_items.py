@@ -1,4 +1,4 @@
-"""Invoice line items: create/list, positions, decimal parsing, isolation —
+﻿"""Invoice line items: create/list, positions, decimal parsing, isolation —
 the auditor's model-without-endpoints gap (InvoiceLineItem)."""
 
 from helpers import register
@@ -30,7 +30,7 @@ def test_line_items_create_and_list_in_position_order(client):
     assert second.status_code == 201
     assert second.json()["position"] == 2
 
-    rows = client.get(f"/api/v1/invoices/{invoice_id}/line-items").json()
+    rows = client.get(f"/api/v1/invoices/{invoice_id}/line-items").json()["items"]
     assert [r["position"] for r in rows] == [1, 2]
     assert rows[0]["description"] == "Widget"
 

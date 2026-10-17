@@ -1,7 +1,8 @@
 """Investigation routes: fraud assessments, cases, review actions.
 
-Roles: run assessments / work cases = org_admin, finance_officer, reviewer;
-closing a case (R6 decision) and dispositions = org_admin, reviewer.
+Roles (docs/API.md §5 matrix): running assessments, working cases (assign,
+review actions, dispositions, match reviews) = org_admin, finance_officer,
+reviewer; closing a case (the R6 outcome decision) = org_admin, reviewer.
 """
 
 import uuid
@@ -21,6 +22,7 @@ from app.tenancy.deps import get_current_user
 from app.tenancy.permissions import (
     CAN_CONTRIBUTE,
     CAN_VERIFY_ACCOUNTS,
+    CAN_WORK_CASES,
     require_roles,
 )
 
@@ -28,6 +30,7 @@ router = APIRouter(tags=["investigations"])
 
 _contributor = require_roles(*CAN_CONTRIBUTE)
 _verifier = require_roles(*CAN_VERIFY_ACCOUNTS)
+_case_worker = require_roles(*CAN_WORK_CASES)
 
 _Db = Annotated[Session, Depends(get_db)]
 _PageLimit = Annotated[int, Query(ge=1, le=100)]
@@ -125,9 +128,10 @@ def disposition_finding(
     payload: ds.FindingDispositionIn,
     db: _Db,
     request: Request,
-    actor: Annotated[User, Depends(_verifier)],
+    actor: Annotated[User, Depends(_case_worker)],
 ) -> ds.FraudFindingOut:
-    """Human disposition of one signal (reviewer/org_admin; audited).
+    """Human disposition of one signal ("Work cases" row of docs/API.md §5:
+    org_admin / finance_officer / reviewer; audited).
 
     A non-empty reason is MANDATORY and the override is recorded as a
     review_actions row (on the given case, the invoice's latest case, or
@@ -182,13 +186,14 @@ def review_match(
     payload: ds.MatchReviewIn,
     db: _Db,
     request: Request,
-    actor: Annotated[User, Depends(_verifier)],
+    actor: Annotated[User, Depends(_case_worker)],
 ) -> ds.EvidenceMatchOut:
-    """Human review decision on one evidence match (reviewer/org_admin;
-    audited). This is the disposition path the duplicate_candidate finding
-    points at via its ``evidence_refs``. A non-empty reason is MANDATORY and
-    the decision is recorded as a review_actions row; the underlying
-    detection evidence is never altered."""
+    """Human review decision on one evidence match ("Work cases" row of
+    docs/API.md §5: org_admin / finance_officer / reviewer; audited). This is
+    the disposition path the duplicate_candidate finding points at via its
+    ``evidence_refs``. A non-empty reason is MANDATORY and the decision is
+    recorded as a review_actions row; the underlying detection evidence is
+    never altered."""
     match = fraud_service.review_match(
         db,
         org_id=actor.organization_id,
@@ -222,17 +227,20 @@ def open_case(
     return ds.CaseOut.model_validate(case)
 
 
-@router.get("/cases", response_model=list[ds.CaseOut])
+@router.get("/cases", response_model=ds.PageOut[ds.CaseOut])
 def list_cases(
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
     limit: _PageLimit = 25,
     offset: _PageOffset = 0,
-) -> list[ds.CaseOut]:
-    rows, _t = cases_service.list_cases(
+) -> ds.PageOut[ds.CaseOut]:
+    rows, total = cases_service.list_cases(
         db, org_id=actor.organization_id, limit=limit, offset=offset
     )
-    return [ds.CaseOut.model_validate(c) for c in rows]
+    return ds.PageOut(
+        items=[ds.CaseOut.model_validate(c) for c in rows],
+        pagination=ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )
 
 
 @router.get("/cases/{case_id}", response_model=ds.CaseOut)
@@ -305,13 +313,20 @@ def add_review_action(
     return ds.ReviewActionOut.model_validate(row)
 
 
-@router.get("/cases/{case_id}/actions", response_model=list[ds.ReviewActionOut])
+@router.get(
+    "/cases/{case_id}/actions", response_model=ds.PageOut[ds.ReviewActionOut]
+)
 def list_review_actions(
     case_id: uuid.UUID,
     db: _Db,
     actor: Annotated[User, Depends(get_current_user)],
-) -> list[ds.ReviewActionOut]:
-    rows = cases_service.list_review_actions(
-        db, org_id=actor.organization_id, case_id=case_id
+    limit: _PageLimit = 25,
+    offset: _PageOffset = 0,
+) -> ds.PageOut[ds.ReviewActionOut]:
+    rows, total = cases_service.list_review_actions(
+        db, org_id=actor.organization_id, case_id=case_id, limit=limit, offset=offset
     )
-    return [ds.ReviewActionOut.model_validate(r) for r in rows]
+    return ds.PageOut(
+        items=[ds.ReviewActionOut.model_validate(r) for r in rows],
+        pagination=ds.PaginationOut(limit=limit, offset=offset, total=total),
+    )

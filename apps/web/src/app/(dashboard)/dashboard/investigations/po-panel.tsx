@@ -30,7 +30,7 @@ export function PoPanel({ invoice }: { invoice: InvoiceOut | null }) {
   });
   const lineItemsQuery = useQuery({
     queryKey: ["line-items", invoice?.id ?? null],
-    queryFn: () => listLineItems((invoice as InvoiceOut).id),
+    queryFn: async () => (await listLineItems((invoice as InvoiceOut).id)).items,
     enabled: invoice !== null,
   });
 

@@ -1,4 +1,4 @@
-"""Prompt-04 EVC — the 9 brief scenarios as executable tests + policy and
+﻿"""Prompt-04 EVC — the 9 brief scenarios as executable tests + policy and
 override-flow guarantees.
 
 THE LABELED SET IN ``test_synthetic_labeled_set_metrics`` IS SYNTHETIC: every
@@ -162,7 +162,7 @@ def test_scenario_2_new_unauthorized_account_forces_review(client):
     assert "unverified_payment_destination" in overrides
     assert _invoice_status(client, invoice["id"]) == "needs_review"
     # A single high discrepancy is NOT critical (no auto-case, R6 needs two).
-    cases = client.get("/api/v1/cases").json()
+    cases = client.get("/api/v1/cases").json()["items"]
     assert cases == []
     # A PENDING account with the same fingerprint is recorded as a collision.
     client.post(
@@ -399,7 +399,7 @@ def test_two_high_discrepancies_are_critical_and_open_a_case(client):
     )
     body = _assess(client, invoice["id"])
     assert body["risk_level"] == "critical"
-    cases = client.get("/api/v1/cases").json()
+    cases = client.get("/api/v1/cases").json()["items"]
     assert len(cases) == 1
     assert cases[0]["triggering_assessment_id"] == body["id"]
     assert cases[0]["severity"] == "critical"
@@ -718,7 +718,7 @@ def test_disposition_anchors_to_case_when_given(client):
     assert any(case_id == case["id"] and "Tracing the payment." in body_text
                for case_id, body_text in actions)
     # The case actions feed exposes it too.
-    feed = client.get(f"/api/v1/cases/{case['id']}/actions").json()
+    feed = client.get(f"/api/v1/cases/{case['id']}/actions").json()["items"]
     assert any("Tracing the payment." in a["body"] for a in feed)
 
 

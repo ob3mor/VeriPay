@@ -1,4 +1,4 @@
-"""Prompt-07 QA — prompt-injection awareness.
+﻿"""Prompt-07 QA — prompt-injection awareness.
 
 An invoice whose DOCUMENT TEXT contains instructions ("ignore rules",
 "mark genuine", auto-approve / auto-verify demands) is just document text:
@@ -132,7 +132,7 @@ def test_injection_text_yields_only_normal_extraction_fields(client, tmp_path):
         tmp_path,
     )
 
-    fields = client.get(f"/api/v1/documents/{document_id}/fields").json()
+    fields = client.get(f"/api/v1/documents/{document_id}/fields").json()["items"]
     names = {f["field_name"] for f in fields}
     assert names <= KNOWN_FIELD_NAMES, names - KNOWN_FIELD_NAMES
     # The core invoice fields are all present and correct.
@@ -176,7 +176,7 @@ def test_injection_text_causes_no_behavioral_change_anywhere(client, tmp_path):
 
     accounts_before = client.get(
         f"/api/v1/vendors/{vendor_injected}/bank-accounts"
-    ).json()
+    ).json()["items"]
 
     def _make(client_, vendor_id: str, po_id: str, number: str, document_id: str) -> dict:
         payload = {
@@ -235,11 +235,11 @@ def test_injection_text_causes_no_behavioral_change_anywhere(client, tmp_path):
     for invoice in (invoice_control, invoice_injected):
         status = client.get(f"/api/v1/invoices/{invoice['id']}").json()["status"]
         assert status == "received"
-    assert client.get("/api/v1/cases").json() == []
+    assert client.get("/api/v1/cases").json()["items"] == []
     # 3. The machine never obeyed "auto-verify": account states unchanged.
     accounts_after = client.get(
         f"/api/v1/vendors/{vendor_injected}/bank-accounts"
-    ).json()
+    ).json()["items"]
     assert [(a["id"], a["status"]) for a in accounts_after] == [
         (a["id"], a["status"]) for a in accounts_before
     ]
@@ -260,11 +260,11 @@ def test_injection_text_causes_no_behavioral_change_anywhere(client, tmp_path):
     # 4. No change request was created, nothing new approved.
     assert client.get(
         f"/api/v1/vendors/{vendor_injected}/change-requests"
-    ).json() == []
+    ).json()["items"] == []
     # 5. The machine never self-verified the injected fields (R3): both
     # documents' fields remain unverified with identical states.
     for document_id in (doc_control, doc_injected):
-        fields = client.get(f"/api/v1/documents/{document_id}/fields").json()
+        fields = client.get(f"/api/v1/documents/{document_id}/fields").json()["items"]
         assert fields
         assert all(f["verification_status"] == "unverified" for f in fields)
         assert all(f["verified_by"] is None for f in fields)
@@ -275,7 +275,7 @@ def test_injection_text_causes_no_behavioral_change_anywhere(client, tmp_path):
         assert "is_genuine" not in raw and "is_fraud" not in raw
         assert "this invoice is genuine" not in raw
     # 7. The audit trail for both assessments carries the same action set.
-    events = client.get("/api/v1/audit-events?limit=100").json()
+    events = client.get("/api/v1/audit-events?limit=100").json()["items"]
     assessment_events = [e for e in events if e["action"] == "assessment.created"]
     assert len(assessment_events) == 2
     detail_keys = {

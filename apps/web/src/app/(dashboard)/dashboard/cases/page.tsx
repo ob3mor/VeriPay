@@ -74,7 +74,7 @@ export default function CasesPage() {
 
   const casesQuery = useQuery({
     queryKey: ["cases", "list", { limit: PAGE_LIMIT }],
-    queryFn: () => listCases({ limit: PAGE_LIMIT }),
+    queryFn: async () => (await listCases({ limit: PAGE_LIMIT })).items,
   });
 
   const [statusFilter, setStatusFilter] = useState<string>("");

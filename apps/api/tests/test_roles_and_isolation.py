@@ -26,7 +26,7 @@ def test_auditor_can_read_audit_events_but_cannot_upload(client):
 
     events = client.get("/api/v1/audit-events")
     assert events.status_code == 200
-    assert len(events.json()) > 0  # registration itself is audited
+    assert len(events.json()["items"]) > 0  # registration itself is audited
 
     forbidden = client.post(
         "/api/v1/documents",
@@ -141,7 +141,7 @@ def test_cross_tenant_access_is_404_everywhere(client):
         == 404
     )
     assert client.get(f"/api/v1/documents/{document['id']}/file").status_code == 404
-    events = client.get("/api/v1/audit-events").json()
+    events = client.get("/api/v1/audit-events").json()["items"]
     # Org B sees only its own trail — no org A event ids leak in.
     foreign_ids = {
         e["id"] for e in events if e["entity_id"] in (vendor_id, document["id"])

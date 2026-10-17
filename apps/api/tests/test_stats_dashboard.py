@@ -1,4 +1,4 @@
-"""GET /stats/dashboard — org-scoped aggregates (the auditor's missing
+﻿"""GET /stats/dashboard — org-scoped aggregates (the auditor's missing
 stats endpoint). Counts are work-queue sizes, never verdicts (R2)."""
 
 import time

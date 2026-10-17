@@ -30,13 +30,16 @@ import type { FraudAssessmentOut } from "@veripay/api-contracts";
  *
  * API reality (verified against apps/api/app/api/v1/routes/procurement.py and
  * packages/api-contracts): GET /invoices takes ONLY limit (≤ 100) / offset
- * and returns a bare array — no search, no filters, no total. The screen
- * therefore loads a window of invoices (100 per block, "Load more" extends
- * it) and runs search/filter/pagination client-side over exactly what is
- * loaded; the summary line and the hint below the filters state that scope
- * instead of pretending a global search. Risk category and processing state
- * come from each invoice's latest assessment (GET /invoices/{id}/assessment,
- * fetched per loaded row and cached by TanStack Query).
+ * and returns the API.md §3 envelope — no server-side search or filters, but
+ * pagination.total IS exact (same org-scoped filter), so "Load more" knows
+ * precisely when everything is loaded. The screen still loads a window of
+ * invoices (100 per block) and runs search/filter/pagination client-side
+ * over exactly what is loaded; the summary line and the hint below the
+ * filters state that scope instead of pretending a global search. Risk
+ * category and processing state come from each invoice's latest assessment
+ * (GET /invoices/{id}/assessment, fetched per loaded row and cached by
+ * TanStack Query); a FAILED per-row fetch renders an explicit "Load failed"
+ * cell with retry — never a permanent loading state.
  *
  * Honesty: every status renders through src/lib/status.ts — no approved /
  * genuine vocabulary exists anywhere (R1/R2); "Unresolved" vendor and "Not
@@ -67,6 +70,8 @@ export default function InvoicesListPage() {
   const [page, setPage] = useState(1);
 
   // Loaded window: `blocks` consecutive server pages of 100, concatenated.
+  // The §3 envelope's pagination.total (same org-scoped filter on every
+  // page) drives hasMore exactly, instead of guessing from the page size.
   const invoicesQuery = useQuery({
     queryKey: ["invoices", "list", blocks],
     queryFn: async () => {
@@ -75,7 +80,10 @@ export default function InvoicesListPage() {
           listInvoices({ limit: BLOCK_SIZE, offset: index * BLOCK_SIZE })
         )
       );
-      return serverPages.flat();
+      return {
+        invoices: serverPages.flatMap((page) => page.items),
+        total: serverPages[serverPages.length - 1]?.pagination.total ?? 0,
+      };
     },
   });
 
@@ -83,19 +91,20 @@ export default function InvoicesListPage() {
   // labels — the list itself still works.
   const vendorsQuery = useQuery({
     queryKey: ["vendors", "list"],
-    queryFn: () => listVendors({ limit: 100 }),
+    queryFn: async () => (await listVendors({ limit: 100 })).items,
     staleTime: 60_000,
   });
 
   // Cases for the row → investigation links (first case per invoice wins).
   const casesQuery = useQuery({
     queryKey: ["cases", "list"],
-    queryFn: () => listCases({ limit: 100 }),
+    queryFn: async () => (await listCases({ limit: 100 })).items,
     staleTime: 30_000,
   });
 
-  const invoices = invoicesQuery.data ?? [];
-  const hasMore = invoicesQuery.data !== undefined && invoices.length === blocks * BLOCK_SIZE;
+  const invoices = invoicesQuery.data?.invoices ?? [];
+  const totalKnown = invoicesQuery.data?.total ?? 0;
+  const hasMore = invoicesQuery.data !== undefined && invoices.length < totalKnown;
 
   const vendorNames = useMemo(() => {
     const map = new Map<string, string>();
@@ -126,10 +135,24 @@ export default function InvoicesListPage() {
   // resolves, the useQueries state changes and the enriched rows (below) must
   // see it — a memo keyed on the query array would go stale. Filtering a few
   // hundred rows per render is trivially cheap.
+  //
+  // State classification (the point of the failed-state fix): a FAILED query
+  // also has `data === undefined`, so "loading" must be `data === undefined
+  // && !query.isError` — otherwise one network hiccup would leave the row in
+  // a permanent "…" state. Failed rows render "Load failed" + retry, driven
+  // by the row-scoped refetch captured here.
   const assessmentsById = new Map<string, FraudAssessmentOut | null>();
+  const failedAssessmentIds = new Set<string>();
+  const assessmentRetryById = new Map<string, () => void>();
   invoices.forEach((invoice, index) => {
     const query = assessmentQueries[index];
-    if (query && query.data !== undefined) assessmentsById.set(invoice.id, query.data);
+    if (!query) return;
+    if (query.data !== undefined) {
+      assessmentsById.set(invoice.id, query.data);
+    } else if (query.isError) {
+      failedAssessmentIds.add(invoice.id);
+      assessmentRetryById.set(invoice.id, () => void query.refetch());
+    }
   });
 
   const rows: InvoiceRow[] = (() => {
@@ -139,6 +162,7 @@ export default function InvoicesListPage() {
         invoice,
         vendorName: invoice.vendor_id ? vendorNames.get(invoice.vendor_id) ?? null : null,
         assessment: assessmentsById.get(invoice.id),
+        assessmentFailed: failedAssessmentIds.has(invoice.id),
         linkedCase: caseByInvoice.get(invoice.id) ?? null,
       }))
       .filter((row) => {
@@ -235,7 +259,10 @@ export default function InvoicesListPage() {
               }
             />
           ) : (
-            <InvoicesTable rows={pageRows} />
+            <InvoicesTable
+              rows={pageRows}
+              onRetryAssessment={(invoiceId) => assessmentRetryById.get(invoiceId)?.()}
+            />
           )}
 
           <ListPagination

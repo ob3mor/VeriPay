@@ -1,5 +1,9 @@
 # VeriPay
 
+<p align="center">
+  <img src="apps/web/public/logo.png" alt="VeriPay logo" width="360" />
+</p>
+
 **AI-powered invoice & payment fraud prevention for finance and procurement teams.**
 
 > **Made by Xander + Joka** 🛡️
@@ -21,7 +25,7 @@ implementation decision ([docs/ARCHITECTURE.md §2](docs/ARCHITECTURE.md)):
 5. A new bank account requires independent verification.
 6. Human review is mandatory for critical inconsistencies.
 
-## Status — what works today (Phase 2)
+## Status — what works today (prompts 00–07; master plan in [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md))
 
 - **Secure backend & data layer** (`apps/api`, FastAPI + SQLAlchemy 2 + Alembic):
   - **Auth**: httpOnly **cookie sessions** (durable `sessions` table, SHA-256-hashed
@@ -35,24 +39,41 @@ implementation decision ([docs/ARCHITECTURE.md §2](docs/ARCHITECTURE.md)):
     human approves — with `verification_method` + reference/document; an uploaded
     invoice can never approve an account. Change requests are approved/rejected by
     reviewers and mint the approved account with the deciding human stamped.
-  - **Documents**: PDF/PNG/JPEG with **magic-byte signature checks**, size limits,
-    per-org SHA-256 dedup, tenant-prefixed private storage, protected downloads.
+  - **Documents & extraction (Prompt-02)**: PDF/PNG/JPEG with **magic-byte signature
+    checks**, size limits, per-org SHA-256 dedup, tenant-prefixed private storage,
+    protected downloads; OCR provider seam (`text_layer` default for PDFs with an
+    embedded text layer, plus `tesseract` (optional binary), `azure` (Document
+    Intelligence, coded but not live), `stub`); structured field extraction with
+    **evidence spans + confidence**, manual field review, and the R3 confidence
+    gate — uncertain OCR becomes `unverified_input`, never evidence.
+  - **Evidence retrieval (Prompt-03)**: citable evidence per invoice
+    (`GET /invoices/{id}/evidence`) — POs, trusted accounts with verification
+    status, vendor/invoice/document history; normalization (incl. Arabic-Indic
+    digits), trust tiers, hybrid ranking; **optional** pgvector migration, off by
+    default.
   - **Processing**: durable, idempotent job state machine
     (pending → processing → completed/failed/requires_manual_input) with a
     ProcessingBackend seam — **inline by default** (no always-on worker; the Azure
     demo stays scale-to-zero), optional Celery/Redis worker locally.
-  - **Fraud (rules-v0.1)**: deterministic, explainable signals — missing evidence
+  - **Fraud (EVC v1, Prompt-04)**: deterministic, explainable signals — missing evidence
     (≤ medium), unverified OCR input, provenance conflicts, duplicate candidates,
     amount mismatch, **bank_account_unverified (severity floor: high, forces
-    human review)**. The EVC construct stays a NULL placeholder until its phase.
+    human review)** — plus the EVC v1 payload: policy `policy_v1.json`, six weighted
+    features with per-feature uncertainty states, contributions, overrides, and a
+    result state that is a **consistency measure, never a fraud probability** (R2).
   - **Investigations & audit**: investigation cases with mandatory human outcome +
     resolution summary to close, review-action trail, and an append-only
     `audit_events` reader (org_admin/auditor only).
-  - 20 tables · single squashed migration (`0001_full_schema`) · 35 REST routes ·
+  - 20 tables · migrations `0001_full_schema` + `0002` (optional pgvector) +
+    `0003` (EVC review-action change) · **43 REST paths / 54 operations** ·
     committed OpenAPI snapshot with a drift test.
 - **Frontend** (`apps/web`, Next.js App Router **static export** for Azure Static Web
-  Apps Free): landing, register, login wired to the real API, dashboard shell with
-  cookie-based session resolution and role labels.
+  Apps Free): landing, register, login, and the full dashboard — live overview from
+  `GET /stats/dashboard`, vendor management (contacts / authorized contacts / bank
+  accounts / change requests), invoice list with the honest outcome vocabulary,
+  drag-and-drop **upload with extraction view**, split-screen **investigation
+  workspace** (evidence, fields, findings, matches, actions), case list/detail with
+  role-aware close (R6), and the audit page. Cookie+CSRF session, zero web storage.
 - **Docker** (`infrastructure/local/docker-compose.yml`): postgres + MinIO + API
   (container **migrates before serving**) + web dev server; optional Redis/Celery
   worker profile. Health checks and persistent volumes throughout. *Authored on a
@@ -60,10 +81,14 @@ implementation decision ([docs/ARCHITECTURE.md §2](docs/ARCHITECTURE.md)):
 - **CI** (`.github/workflows/ci.yml`): backend migrations + pytest, contracts
   typecheck, frontend build, compose YAML check.
 
-Verified on this machine (2026-10-17): **72/72 backend tests**, frontend static build,
-migration upgrade/downgrade/check cycle, and a live end-to-end acceptance flow
-(register → login → vendor → approved bank account → PO → invoice upload → assess).
-Plan: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
+Re-verified on this machine (2026-10-17, prompts 00–07 run): **295 passed / 6 honest skips**
+(301 tests; 1 tesseract-binary skip, 5 PostgreSQL-conditional skips), frontend static build
+(14 routes), contracts `tsc`, migration offline SQL (SQLite **and** PostgreSQL dialects) +
+scratch upgrade/downgrade/upgrade + `alembic check`, compose/CI YAML parse, and a seeded
+end-to-end demo dataset (`scripts/seed_demo.py` — 12 invoices, 3 cases). What was **not** run
+anywhere: any Docker command, any live PostgreSQL, any cloud call —
+[docs/LIMITATIONS.md](docs/LIMITATIONS.md) is the honest boundary.
+Plan status: [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md).
 
 ## Architecture at a glance
 
@@ -99,7 +124,7 @@ VeriPay/
 ├── infrastructure/
 │   └── local/               # docker-compose.yml (PROFILE A) — postgres/minio/api/web (+worker)
 ├── scripts/                 # dev-up/dev-down helpers (compose wrappers; need Docker)
-├── docs/                    # architecture, database, API, plan, ADRs, cost, security, demo
+├── docs/                    # master plan, architecture, database, API, limitations, ADRs, runbooks, demo guide
 ├── .github/workflows/ci.yml # CI: migrations + tests + builds
 ├── .env.example             # environment template (VERIPAY_* / NEXT_PUBLIC_*)
 └── package.json             # npm workspaces root (web + api-contracts)
@@ -158,7 +183,7 @@ A 5-minute walkthrough of this flow: **[docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md)*
 
 ```bat
 cd apps\api
-.venv\Scripts\python.exe -m pytest -q      :: 72 tests
+.venv\Scripts\python.exe -m pytest -q      :: 295 passed, 6 skipped (2026-10-17)
 ```
 
 ## Docker path — requires Docker Desktop (compose files authored on a machine without Docker; first real run on CI/Docker-equipped machines)
@@ -191,8 +216,9 @@ audit provenance — with honest "not secure yet" gaps:
 
 ## Documentation
 
-[ARCHITECTURE](docs/ARCHITECTURE.md) · [DATABASE](docs/DATABASE.md) ·
-[API](docs/API.md) · [IMPLEMENTATION_PLAN](docs/IMPLEMENTATION_PLAN.md) ·
+[MASTER_PLAN](docs/MASTER_PLAN.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) ·
+[DATABASE](docs/DATABASE.md) · [API](docs/API.md) ·
+[IMPLEMENTATION_PLAN](docs/IMPLEMENTATION_PLAN.md) · [LIMITATIONS](docs/LIMITATIONS.md) ·
 [SECURITY](docs/SECURITY.md) · [TESTING](docs/TESTING.md) ·
 [DEPLOYMENT_LOCAL](docs/DEPLOYMENT_LOCAL.md) ·
 [DEPLOYMENT_AZURE](docs/DEPLOYMENT_AZURE.md) · [COST_ESTIMATE](docs/COST_ESTIMATE.md) ·

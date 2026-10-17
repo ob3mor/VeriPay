@@ -2312,6 +2312,277 @@
         "title": "OrganizationOut",
         "type": "object"
       },
+      "PageOut_AuditEventOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEventOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[AuditEventOut]",
+        "type": "object"
+      },
+      "PageOut_CaseOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CaseOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[CaseOut]",
+        "type": "object"
+      },
+      "PageOut_ChangeRequestOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeRequestOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[ChangeRequestOut]",
+        "type": "object"
+      },
+      "PageOut_ContactOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ContactOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[ContactOut]",
+        "type": "object"
+      },
+      "PageOut_DocumentOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[DocumentOut]",
+        "type": "object"
+      },
+      "PageOut_ExtractionFieldOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExtractionFieldOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[ExtractionFieldOut]",
+        "type": "object"
+      },
+      "PageOut_InvoiceOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[InvoiceOut]",
+        "type": "object"
+      },
+      "PageOut_LineItemOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LineItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[LineItemOut]",
+        "type": "object"
+      },
+      "PageOut_PurchaseOrderOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseOrderOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[PurchaseOrderOut]",
+        "type": "object"
+      },
+      "PageOut_ReviewActionOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewActionOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[ReviewActionOut]",
+        "type": "object"
+      },
+      "PageOut_Union_BankAccountOut__BankAccountDetail__": {
+        "properties": {
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/BankAccountOut"
+                },
+                {
+                  "$ref": "#/components/schemas/BankAccountDetail"
+                }
+              ]
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[Union[BankAccountOut, BankAccountDetail]]",
+        "type": "object"
+      },
+      "PageOut_VendorOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VendorOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationOut"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ],
+        "title": "PageOut[VendorOut]",
+        "type": "object"
+      },
+      "PaginationOut": {
+        "description": "The docs/API.md \u00a73 pagination block echoed back to the client.",
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "title": "PaginationOut",
+        "type": "object"
+      },
       "ProcessedDocumentOut": {
         "description": "Upload/process response including the inline processing outcome.",
         "properties": {
@@ -3188,11 +3459,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/AuditEventOut"
-                  },
-                  "title": "Response List Audit Events Api V1 Audit Events Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_AuditEventOut_"
                 }
               }
             },
@@ -3410,11 +3677,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/CaseOut"
-                  },
-                  "title": "Response List Cases Api V1 Cases Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_CaseOut_"
                 }
               }
             },
@@ -3547,6 +3810,29 @@
               "title": "Case Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -3554,11 +3840,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ReviewActionOut"
-                  },
-                  "title": "Response List Review Actions Api V1 Cases  Case Id  Actions Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_ReviewActionOut_"
                 }
               }
             },
@@ -3792,11 +4074,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/DocumentOut"
-                  },
-                  "title": "Response List Documents Api V1 Documents Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_DocumentOut_"
                 }
               }
             },
@@ -4026,6 +4304,29 @@
               "title": "Document Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -4033,11 +4334,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ExtractionFieldOut"
-                  },
-                  "title": "Response List Extraction Fields Api V1 Documents  Document Id  Fields Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_ExtractionFieldOut_"
                 }
               }
             },
@@ -4232,7 +4529,7 @@
     },
     "/api/v1/findings/{finding_id}/disposition": {
       "post": {
-        "description": "Human disposition of one signal (reviewer/org_admin; audited).\n\nA non-empty reason is MANDATORY and the override is recorded as a\nreview_actions row (on the given case, the invoice's latest case, or\ncase-less). A disposition is an annotation \u2014 it never rewrites severity,\nthe assessment, or the invoice status (the \u00a78 forcing rules are not a\ndisposition away), and the original automated assessment is preserved\nimmutably.",
+        "description": "Human disposition of one signal (\"Work cases\" row of docs/API.md \u00a75:\norg_admin / finance_officer / reviewer; audited).\n\nA non-empty reason is MANDATORY and the override is recorded as a\nreview_actions row (on the given case, the invoice's latest case, or\ncase-less). A disposition is an annotation \u2014 it never rewrites severity,\nthe assessment, or the invoice status (the \u00a78 forcing rules are not a\ndisposition away), and the original automated assessment is preserved\nimmutably.",
         "operationId": "disposition_finding_api_v1_findings__finding_id__disposition_post",
         "parameters": [
           {
@@ -4347,11 +4644,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/InvoiceOut"
-                  },
-                  "title": "Response List Invoices Api V1 Invoices Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_InvoiceOut_"
                 }
               }
             },
@@ -4638,6 +4931,29 @@
               "title": "Invoice Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -4645,11 +4961,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/LineItemOut"
-                  },
-                  "title": "Response List Line Items Api V1 Invoices  Invoice Id  Line Items Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_LineItemOut_"
                 }
               }
             },
@@ -4841,7 +5153,7 @@
     },
     "/api/v1/matches/{match_id}/review": {
       "post": {
-        "description": "Human review decision on one evidence match (reviewer/org_admin;\naudited). This is the disposition path the duplicate_candidate finding\npoints at via its ``evidence_refs``. A non-empty reason is MANDATORY and\nthe decision is recorded as a review_actions row; the underlying\ndetection evidence is never altered.",
+        "description": "Human review decision on one evidence match (\"Work cases\" row of\ndocs/API.md \u00a75: org_admin / finance_officer / reviewer; audited). This is\nthe disposition path the duplicate_candidate finding points at via its\n``evidence_refs``. A non-empty reason is MANDATORY and the decision is\nrecorded as a review_actions row; the underlying detection evidence is\nnever altered.",
         "operationId": "review_match_api_v1_matches__match_id__review_post",
         "parameters": [
           {
@@ -4980,11 +5292,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PurchaseOrderOut"
-                  },
-                  "title": "Response List Purchase Orders Api V1 Purchase Orders Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_PurchaseOrderOut_"
                 }
               }
             },
@@ -5164,11 +5472,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/VendorOut"
-                  },
-                  "title": "Response List Vendors Api V1 Vendors Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_VendorOut_"
                 }
               }
             },
@@ -5302,6 +5606,29 @@
               "title": "Vendor Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -5309,18 +5636,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "anyOf": [
-                      {
-                        "$ref": "#/components/schemas/BankAccountOut"
-                      },
-                      {
-                        "$ref": "#/components/schemas/BankAccountDetail"
-                      }
-                    ]
-                  },
-                  "title": "Response List Bank Accounts Api V1 Vendors  Vendor Id  Bank Accounts Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_Union_BankAccountOut__BankAccountDetail__"
                 }
               }
             },
@@ -5613,6 +5929,29 @@
               "title": "Vendor Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -5620,11 +5959,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ChangeRequestOut"
-                  },
-                  "title": "Response List Change Requests Api V1 Vendors  Vendor Id  Change Requests Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_ChangeRequestOut_"
                 }
               }
             },
@@ -5858,6 +6193,29 @@
               "title": "Vendor Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -5865,11 +6223,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ContactOut"
-                  },
-                  "title": "Response List Contacts Api V1 Vendors  Vendor Id  Contacts Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/PageOut_ContactOut_"
                 }
               }
             },

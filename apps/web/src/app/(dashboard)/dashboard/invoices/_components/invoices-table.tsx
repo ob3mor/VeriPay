@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import {
   HONEST_OUTCOME_LABELS,
+  LOAD_FAILED_PRESENTATION,
   assessmentRiskPresentation,
   invoiceStatusPresentation,
 } from "@/lib/status";
@@ -19,25 +20,71 @@ export interface InvoiceRow {
   invoice: InvoiceOut;
   /** Resolved vendor display name; null when the vendor is unresolved. */
   vendorName: string | null;
-  /** Latest assessment; undefined while its query is still loading. */
+  /** Latest assessment; undefined while its query is loading or failed. */
   assessment: FraudAssessmentOut | null | undefined;
+  /** True when the per-row assessment QUERY failed (a load problem — not a
+   *  processing failure of the assessment itself, see derive.ts). */
+  assessmentFailed: boolean;
   /** Open/closed case linked to this invoice, when one exists. */
   linkedCase: { id: string; caseNumber: string } | null;
 }
 
 export interface InvoicesTableProps {
   rows: InvoiceRow[];
+  /** Retry a failed per-row assessment fetch (row-scoped refetch). */
+  onRetryAssessment?: (invoiceId: string) => void;
 }
 
 const RISK_NOT_ASSESSED = { label: "Not assessed", tone: "muted" } as const;
 
 /**
- * Risk-category cell: undefined assessment = still loading ("…"); null =
- * loaded, no assessment ("Not assessed"); failed = "Processing failed";
- * otherwise the owner-mandated honest outcome label (src/lib/status.ts).
+ * The per-row assessment fetch failed: an explicit state + retry — never a
+ * permanent "…" (a failed query also has `data === undefined`, so the two
+ * must be told apart). "Load failed" is about THIS page's request; the
+ * pipeline itself may be perfectly fine.
  */
-function RiskCell({ assessment }: { assessment: FraudAssessmentOut | null | undefined }) {
+function AssessmentLoadFailedCell({
+  invoiceId,
+  onRetryAssessment,
+}: {
+  invoiceId: string;
+  onRetryAssessment?: (invoiceId: string) => void;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <StatusBadge presentation={LOAD_FAILED_PRESENTATION} hideDot />
+      {onRetryAssessment ? (
+        <button
+          type="button"
+          onClick={() => onRetryAssessment(invoiceId)}
+          className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          Retry
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * Risk-category cell: undefined assessment + failed query = "Load failed"
+ * (with retry); undefined + still loading = "…"; null = loaded, no
+ * assessment ("Not assessed"); assessment.status "failed" = "Processing
+ * failed"; otherwise the owner-mandated honest outcome label
+ * (src/lib/status.ts).
+ */
+function RiskCell({
+  row,
+  onRetryAssessment,
+}: {
+  row: InvoiceRow;
+  onRetryAssessment?: (invoiceId: string) => void;
+}) {
+  const { assessment, assessmentFailed, invoice } = row;
   if (assessment === undefined) {
+    if (assessmentFailed) {
+      return <AssessmentLoadFailedCell invoiceId={invoice.id} onRetryAssessment={onRetryAssessment} />;
+    }
     return <span className="text-xs text-muted-foreground">…</span>;
   }
   if (assessment === null) {
@@ -85,7 +132,7 @@ function InvestigationLink({ row }: { row: InvoiceRow }) {
  * investigation link. The vendor column says "Unresolved" as a neutral state
  * (a missing vendor is a workflow step, not an error — docs/API.md §6).
  */
-export function InvoicesTable({ rows }: InvoicesTableProps) {
+export function InvoicesTable({ rows, onRetryAssessment }: InvoicesTableProps) {
   return (
     <div className="overflow-x-auto rounded-lg border bg-card">
       <table className="w-full min-w-[900px] text-sm">
@@ -122,11 +169,18 @@ export function InvoicesTable({ rows }: InvoicesTableProps) {
                   {formatDate(invoice.invoice_date)}
                 </td>
                 <td className="px-4 py-3">
-                  <RiskCell assessment={assessment} />
+                  <RiskCell row={row} onRetryAssessment={onRetryAssessment} />
                 </td>
                 <td className="px-4 py-3">
                   {assessment === undefined ? (
-                    <span className="text-xs text-muted-foreground">…</span>
+                    row.assessmentFailed ? (
+                      <AssessmentLoadFailedCell
+                        invoiceId={invoice.id}
+                        onRetryAssessment={onRetryAssessment}
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">…</span>
+                    )
                   ) : (
                     <StatusBadge presentation={PROCESSING_BADGES[processingStateOf(assessment)]} hideDot />
                   )}

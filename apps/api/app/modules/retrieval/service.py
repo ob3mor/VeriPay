@@ -309,15 +309,26 @@ def get_invoice_evidence(db: Session, *, org_id: object, invoice_id: object) -> 
             )
 
     # ------------------------------------------------------ fuzzy retrieval --
+    # ``seeds`` feeds the actual search and may hold the raw remittance
+    # account; ``meta_seeds`` is what the response echoes and carries the
+    # masked form instead — full account numbers never leave the server
+    # (schemas header; docs/API.md §5.8).
     seeds: list[str] = [invoice.invoice_number]
+    meta_seeds: list[str] = [invoice.invoice_number]
     if graph.vendor is not None:
         seeds.append(graph.vendor.display_name)
+        meta_seeds.append(graph.vendor.display_name)
         if graph.vendor.legal_name:
             seeds.append(graph.vendor.legal_name)
+            meta_seeds.append(graph.vendor.legal_name)
     if graph.printed_po_reference:
         seeds.append(graph.printed_po_reference)
+        meta_seeds.append(graph.printed_po_reference)
     if invoice.remittance_account_raw:
         seeds.append(invoice.remittance_account_raw)
+        meta_seeds.append(
+            "remittance_account_last4:" + invoice.remittance_account_raw[-4:]
+        )
     for seed in seeds:
         result = search(db, org_id=org_id, query=seed, limit=25)
         _merge_fuzzy_hits(
@@ -339,7 +350,7 @@ def get_invoice_evidence(db: Session, *, org_id: object, invoice_id: object) -> 
         "meta": {
             "backend": get_backend(db).name,
             "weights": default_weights(),
-            "seeds": seeds,
+            "seeds": meta_seeds,
             "latency_ms": round(elapsed_ms, 3),
         },
     }

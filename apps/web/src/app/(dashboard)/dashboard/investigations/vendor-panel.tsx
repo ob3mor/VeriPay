@@ -63,7 +63,7 @@ function VendorForId({
   });
   const accountsQuery = useQuery({
     queryKey: ["accounts", vendorId],
-    queryFn: () => listBankAccounts(vendorId),
+    queryFn: async () => (await listBankAccounts(vendorId)).items,
   });
 
   const vendor = vendorQuery.data ?? null;
