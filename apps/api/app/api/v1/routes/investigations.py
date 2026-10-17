@@ -1,0 +1,218 @@
+"""Investigation routes: fraud assessments, cases, review actions.
+
+Roles: run assessments / work cases = org_admin, finance_officer, reviewer;
+closing a case (R6 decision) and dispositions = org_admin, reviewer.
+"""
+
+import uuid
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy.orm import Session
+
+from app.api.v1.routes import _domain_schemas as ds
+from app.core.db import get_db
+from app.modules.audit.service import AuditContext, record_audit
+from app.modules.cases import service as cases_service
+from app.modules.fraud import service as fraud_service
+from app.models import User
+from app.tenancy.deps import get_current_user
+from app.tenancy.permissions import (
+    CAN_CONTRIBUTE,
+    CAN_VERIFY_ACCOUNTS,
+    require_roles,
+)
+
+router = APIRouter(tags=["investigations"])
+
+_contributor = require_roles(*CAN_CONTRIBUTE)
+_verifier = require_roles(*CAN_VERIFY_ACCOUNTS)
+
+_Db = Annotated[Session, Depends(get_db)]
+_PageLimit = Annotated[int, Query(ge=1, le=100)]
+_PageOffset = Annotated[int, Query(ge=0)]
+
+
+def _finding_out(f) -> ds.FraudFindingOut:
+    return ds.FraudFindingOut(
+        id=f.id,
+        signal_type=f.signal_type,
+        severity=f.severity,
+        message=f.message,
+        field_refs=f.field_refs,
+        evidence_refs=f.evidence_refs,
+        disposition=f.disposition,
+    )
+
+
+def _assessment_out(a) -> ds.FraudAssessmentOut:
+    return ds.FraudAssessmentOut(
+        id=a.id,
+        invoice_id=a.invoice_id,
+        risk_level=a.risk_level,
+        risk_score=a.risk_score,
+        model_version=a.model_version,
+        signals=a.signals,
+        explanation=a.explanation,
+        status=a.status,
+        findings=[_finding_out(f) for f in a.findings] if hasattr(a, "findings") else [],
+    )
+
+
+@router.post("/invoices/{invoice_id}/assess", response_model=ds.FraudAssessmentOut)
+def assess_invoice(
+    invoice_id: uuid.UUID,
+    db: _Db,
+    request: Request,
+    actor: Annotated[User, Depends(_contributor)],
+) -> ds.FraudAssessmentOut:
+    """Deterministic, explainable assessment (rules-v0.1; EVC stays NULL).
+
+    Persists the assessment + per-signal findings; a ``high`` signal forces
+    ``needs_review`` (machine-set, audited). Never claims genuineness (R2).
+    """
+    assessment = fraud_service.assess_invoice(
+        db,
+        org_id=actor.organization_id,
+        invoice_id=invoice_id,
+        actor=actor,
+        context=AuditContext.from_request(request),
+    )
+    findings = fraud_service.list_findings(db, assessment_id=assessment.id)
+    out = _assessment_out(assessment)
+    out.findings = [_finding_out(f) for f in findings]
+    return out
+
+
+@router.get("/invoices/{invoice_id}/assessment", response_model=ds.FraudAssessmentOut | None)
+def latest_assessment(
+    invoice_id: uuid.UUID,
+    db: _Db,
+    actor: Annotated[User, Depends(get_current_user)],
+) -> ds.FraudAssessmentOut | None:
+    assessment = fraud_service.get_latest_assessment(
+        db, org_id=actor.organization_id, invoice_id=invoice_id
+    )
+    if assessment is None:
+        return None
+    findings = fraud_service.list_findings(db, assessment_id=assessment.id)
+    out = _assessment_out(assessment)
+    out.findings = [_finding_out(f) for f in findings]
+    return out
+
+
+# -------------------------------------------------------------------- cases ---
+@router.post("/cases", response_model=ds.CaseOut, status_code=201)
+def open_case(
+    payload: ds.CaseIn,
+    db: _Db,
+    request: Request,
+    actor: Annotated[User, Depends(_verifier)],
+) -> ds.CaseOut:
+    case = cases_service.open_case(
+        db,
+        org_id=actor.organization_id,
+        actor=actor,
+        title=payload.title,
+        severity=payload.severity,
+        invoice_id=payload.invoice_id,
+        vendor_id=payload.vendor_id,
+        description=payload.description,
+    )
+    return ds.CaseOut.model_validate(case)
+
+
+@router.get("/cases", response_model=list[ds.CaseOut])
+def list_cases(
+    db: _Db,
+    actor: Annotated[User, Depends(get_current_user)],
+    limit: _PageLimit = 25,
+    offset: _PageOffset = 0,
+) -> list[ds.CaseOut]:
+    rows, _t = cases_service.list_cases(
+        db, org_id=actor.organization_id, limit=limit, offset=offset
+    )
+    return [ds.CaseOut.model_validate(c) for c in rows]
+
+
+@router.get("/cases/{case_id}", response_model=ds.CaseOut)
+def get_case(
+    case_id: uuid.UUID, db: _Db, actor: Annotated[User, Depends(get_current_user)]
+) -> ds.CaseOut:
+    return ds.CaseOut.model_validate(
+        cases_service.get_case(db, org_id=actor.organization_id, case_id=case_id)
+    )
+
+
+@router.post("/cases/{case_id}/assign", response_model=ds.CaseOut)
+def assign_case(
+    case_id: uuid.UUID,
+    payload: ds.CaseAssignIn,
+    db: _Db,
+    actor: Annotated[User, Depends(_contributor)],
+) -> ds.CaseOut:
+    assignee = db.get(User, payload.user_id)
+    if assignee is None or assignee.organization_id != actor.organization_id:
+        from app.core.errors import AppError, ErrorCode
+
+        raise AppError(ErrorCode.NOT_FOUND, "User not found in your organization.")
+    case = cases_service.assign_case(
+        db,
+        org_id=actor.organization_id,
+        case_id=case_id,
+        actor=actor,
+        assignee=assignee,
+    )
+    return ds.CaseOut.model_validate(case)
+
+
+@router.post("/cases/{case_id}/close", response_model=ds.CaseOut)
+def close_case(
+    case_id: uuid.UUID,
+    payload: ds.CaseCloseIn,
+    db: _Db,
+    request: Request,
+    actor: Annotated[User, Depends(_verifier)],
+) -> ds.CaseOut:
+    """Human-only close (R6): outcome + resolution summary mandatory."""
+    case = cases_service.close_case(
+        db,
+        org_id=actor.organization_id,
+        case_id=case_id,
+        actor=actor,
+        outcome=payload.outcome,
+        resolution_summary=payload.resolution_summary,
+    )
+    return ds.CaseOut.model_validate(case)
+
+
+@router.post("/cases/{case_id}/actions", response_model=ds.ReviewActionOut, status_code=201)
+def add_review_action(
+    case_id: uuid.UUID,
+    payload: ds.ReviewActionIn,
+    db: _Db,
+    actor: Annotated[User, Depends(_contributor)],
+) -> ds.ReviewActionOut:
+    row = cases_service.add_review_action(
+        db,
+        org_id=actor.organization_id,
+        case_id=case_id,
+        actor=actor,
+        action_type=payload.action_type,
+        body=payload.body,
+        payload=payload.payload,
+    )
+    return ds.ReviewActionOut.model_validate(row)
+
+
+@router.get("/cases/{case_id}/actions", response_model=list[ds.ReviewActionOut])
+def list_review_actions(
+    case_id: uuid.UUID,
+    db: _Db,
+    actor: Annotated[User, Depends(get_current_user)],
+) -> list[ds.ReviewActionOut]:
+    rows = cases_service.list_review_actions(
+        db, org_id=actor.organization_id, case_id=case_id
+    )
+    return [ds.ReviewActionOut.model_validate(r) for r in rows]

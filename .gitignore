@@ -1,0 +1,24 @@
+# VeriPay — root ignore list
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Local env files (never commit real secrets)
+.env
+.env.local
+
+# Local data: SQLite dev fallback DBs, local-filesystem document storage
+data/
+*.db
+
+# Build/incremental artifacts
+*.tsbuildinfo
+*.egg-info/

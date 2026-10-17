@@ -1,0 +1,2 @@
+# VeriPay web — scoped build artifacts not covered by the root .gitignore
+*.tsbuildinfo

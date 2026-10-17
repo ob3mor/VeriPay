@@ -1,0 +1,14 @@
+{
+  "name": "veripay",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "packages/api-contracts"
+  ],
+  "scripts": {
+    "typecheck:contracts": "node node_modules/typescript/bin/tsc --noEmit -p packages/api-contracts"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

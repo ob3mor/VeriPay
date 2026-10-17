@@ -1,0 +1,9 @@
+{
+  "name": "@veripay/api-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hand-mirrored TypeScript types for the VeriPay REST API (docs/API.md). Scaffolding placeholders — replace with OpenAPI-generated types per docs/API.md §1.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

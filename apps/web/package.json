@@ -1,0 +1,33 @@
+{
+  "name": "@veripay/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VeriPay frontend — Next.js App Router static export for Azure Static Web Apps (Free plan).",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node scripts/ensure-next-link.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.104.3",
+    "@veripay/api-contracts": "*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.58.0",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.30",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3"
+  }
+}
