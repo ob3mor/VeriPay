@@ -216,3 +216,22 @@ All three are gitignored (root `.gitignore`, `apps/api/.gitignore`). Everything 
 - The `MinIOS3Provider` storage adapter has never been executed against anything (no boto3, no MinIO) — TESTING.md §8.
 - §2.1 one-time setup commands were not re-run in this session (environment pre-existed); every other command in §2 was executed here on 2026-10-17 with the responses quoted.
 - One leftover uvicorn process (started outside this session, global Python) was found listening on port 8000 during verification and was stopped; all §2 verifications were therefore performed on dedicated ports with freshly created databases, then the documented commands were run as written.
+
+
+---
+
+## Phase 2 update (2026-10-17) — compose now boots the whole demo
+
+- `apps/api/Dockerfile` **applies migrations before serving**
+  (`alembic upgrade head && uvicorn`), closing the Phase 1 gap where a fresh
+  database 500'd on first auth call. The `api` service also has a healthcheck.
+- `apps/web/Dockerfile` + the `web` service run the Next.js dev server in
+  compose (repo-root build context so the npm workspace resolves), so
+  `docker compose -f infrastructure/local/docker-compose.yml up` starts
+  postgres + minio + api + web together. STILL NOT EXECUTED on this machine
+  (no Docker); CI validates the YAML syntax and the migration chain.
+- Optional `worker` profile (`--profile worker`): Celery over Redis for
+  processing. The default `VERIPAY_PROCESSING_BACKEND=inline` needs no worker —
+  this is what keeps the Azure demo scale-to-zero (ADR 0006).
+- The no-Docker quickstart below is unchanged except migrations: ONE step now
+  (`alembic upgrade head` from `apps\api`).

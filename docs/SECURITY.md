@@ -235,3 +235,38 @@ Today these are design constraints (no fraud pipeline exists yet to enforce them
 code); the API's own description already commits to the first two
 (`app/main.py:42-46`). Phases 2–5 implement the enforcement points named in
 [ARCHITECTURE.md §8](ARCHITECTURE.md).
+
+
+---
+
+## Phase 2 update (2026-10-17) — cookie sessions, CSRF, RBAC, masking
+
+The auth model changed in Phase 2 (ADR [0005](adr/0005-cookie-session-csrf.md)):
+
+- **No tokens in browser storage.** The frontend keeps the short-lived (30 min)
+  Bearer token in a module-scoped variable that dies with the page. The durable
+  session is the httpOnly `veripay_session` cookie: an opaque 256-bit random
+  token whose **SHA-256 hash only** is stored server-side (`sessions` table,
+  7-day TTL). XSS cannot read the session cookie or persist a stolen short token.
+- **CSRF** is enforced once in `core/csrf.py`: cookie-authenticated mutating
+  requests must echo the readable `veripay_csrf` cookie in `X-CSRF-Token` AND
+  pass the Origin/Referer allowlist; Bearer requests are exempt (not ambient
+  authority). Login/register/refresh get the Origin check.
+- **Revocation is durable**: `POST /auth/logout` revokes the session row (or the
+  Bearer token's jti) — enforced in `tenancy/deps.py` on every request.
+- **Roles**: `org_admin | finance_officer | reviewer | auditor` enforced by
+  `tenancy/permissions.py` require_roles guards; role is read fresh from the user
+  row per request. Tested: finance_officer cannot verify accounts or read audit
+  events; auditor cannot upload; cross-org is 404.
+- **Masking**: bank-account responses expose last4/holder/bank/country/status
+  only — never the fingerprint, never a full number (not stored), and the R5
+  verification provenance (method/reference/document) only in the
+  reviewer/org_admin detail view. `tax_id` is masked in vendor lists.
+- **Uploads**: PDF/PNG/JPEG with magic-byte signature checks (a renamed file
+  fails), size ceiling (10 MiB default), per-org SHA-256 dedup, tenant-prefixed
+  storage keys resolved from the DB row only (path traversal cannot cross
+  tenants).
+- **Known limits (honest)**: throttling and Bearer-jti revocation are in-process
+  (single-instance assumption, documented seams); the sessions table is the
+  durable/multi-instance path. No CSP nonces under static export (documented in
+  staticwebapp.config.json).

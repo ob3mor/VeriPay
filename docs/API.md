@@ -130,30 +130,42 @@ Any new endpoint PR must satisfy all of these; reviewers check them line by line
 
 ### Role × action matrix (beyond tenancy)
 
-Tenancy is necessary but not sufficient; new endpoints are checked against this matrix too. Enforcement lives in tenancy/permission dependencies:
+Phase 2 canonical roles (ADR 0007): `org_admin`, `finance_officer`, `reviewer`,
+`auditor`. Tenancy is necessary but not sufficient; new endpoints are checked
+against this matrix too. Enforcement lives in `tenancy/permissions.py`:
 
-| Action | viewer | analyst | reviewer | admin | owner |
-|---|---|---|---|---|---|
-| Upload documents / create invoices & POs | – | ✓ | ✓ | ✓ | ✓ |
-| Manage vendors & trusted accounts (create/edit) | – | ✓ | ✓ | ✓ | ✓ |
-| Verify a bank account (R5) | – | – | ✓ | ✓ | ✓ |
-| Revoke a trusted account | – | – | ✓ | ✓ | ✓ |
-| Run assessments (Phase 4) | – | ✓ | ✓ | ✓ | ✓ |
-| Work cases: assign, note, disposition duplicates | – | ✓ | ✓ | ✓ | ✓ |
-| Close a case (R6 outcome) | – | – | ✓ | ✓ | ✓ |
-| View audit logs (Phase 6) | – | – | – | ✓ | ✓ |
-| Org/user administration | – | – | – | ✓ | ✓ |
+| Action | finance_officer | reviewer | auditor | org_admin |
+|---|---|---|---|---|
+| Upload documents / create vendors, POs, invoices / run assessments | ✓ | ✓ | – | ✓ |
+| Work cases: assign, review actions, disposition | ✓ | ✓ | – | ✓ |
+| Verify / reject / revoke bank accounts (R5) | – | ✓ | – | ✓ |
+| Approve / reject bank-account change requests (R5) | – | ✓ | – | ✓ |
+| Close a case (R6 outcome) | – | ✓ | – | ✓ |
+| View audit events (`/audit-events`) | – | – | ✓ | ✓ |
+| Org/user administration | – | – | – | ✓ |
 
 Resource conventions: plural kebab-case nouns (`/api/v1/documents`, `/api/v1/vendors/{vendor_id}/trusted-accounts`); UUID path parameters; POST returns 201 with the created resource; non-CRUD state changes are verb subresources (`POST /api/v1/cases/{id}/close`); GETs must never mutate.
 
-## 6. Future endpoint map (reserved names — not implemented in Phase 1)
+## 6. Phase 2 endpoint map (implemented)
 
-| Phase | Endpoints (shape preview) |
+Auth (see §4 for shapes): `POST /auth/register`, `POST /auth/login`,
+`POST /auth/refresh` (session cookie + CSRF), `GET /auth/me`,
+`POST /auth/logout` (Bearer jti and/or session row revoked, cookies cleared).
+Browser clients authenticate with the httpOnly `veripay_session` cookie and
+echo `veripay_csrf` in `X-CSRF-Token` on mutating requests (ADR 0005);
+programmatic clients use Bearer tokens (exempt from the CSRF header).
+
+| Surface | Endpoints |
 |---|---|
-| 2 | `POST /documents`, `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/file`, `GET /documents/{id}/fields` |
-| 3 | `POST/GET/PATCH /vendors`, `POST/GET /vendors/{id}/trusted-accounts`, `POST /vendors/{id}/trusted-accounts/{account_id}/verify` (human-only, R5), `POST /vendors/{id}/trusted-accounts/{account_id}/revoke`, `POST/GET /purchase-orders`, `POST/GET /invoices` (duplicate vendor+number intake is allowed — see §2), `POST /invoices/{id}/resolve-vendor` |
-| 4 | `POST /invoices/{id}/assess`, `GET /invoices/{id}/assessment` (latest), `GET /invoices/{id}/duplicates`, `POST /duplicates/{id}/review` |
-| 5 | `GET /cases`, `GET /cases/{id}` (composed with the **triggering** assessment via `cases.triggering_assessment_id`, falling back to the latest), `POST /cases/{id}/assign`, `POST /cases/{id}/notes`, `POST /cases/{id}/close` (R6) |
-| 6 | `GET /audit-logs` (owner/admin role only, paginated) |
+| Vendors | `POST/GET /vendors`, `GET /vendors/{id}`; `POST/GET /vendors/{id}/contacts` |
+| Bank accounts (R5) | `POST/GET /vendors/{id}/bank-accounts`, `POST /bank-accounts/{id}/verify` (human-only; method + reference/document mandatory), `POST …/reject`, `POST …/revoke` |
+| Change control (R5) | `POST/GET /vendors/{id}/change-requests`, `POST …/change-requests/{id}/approve`, `POST …/reject` — on approval the service creates the approved account stamped with the deciding human |
+| Purchase orders | `POST/GET /purchase-orders`, `GET /purchase-orders/{id}` |
+| Invoices | `POST/GET /invoices`, `GET /invoices/{id}` (duplicate vendor+number intake is allowed — evidence match + needs_review, never 409), `POST /invoices/{id}/resolve-vendor` |
+| Documents | `POST /documents` (multipart; PDF/PNG/JPEG magic-byte + size validation; per-org sha256 dedup → dedup returns the existing doc; inline processing job runs), `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/file` (protected, DB-resolved key), `GET /documents/{id}/extraction`, `GET /documents/{id}/fields`, `POST /documents/{id}/process` (idempotent retry) |
+| Fraud (rules-v0.1) | `POST /invoices/{id}/assess`, `GET /invoices/{id}/assessment` — deterministic explainable signals per ARCHITECTURE §8; `evc` stays NULL (Phase 4) |
+| Cases (R6) | `POST/GET /cases`, `GET /cases/{id}`, `POST /cases/{id}/assign`, `POST /cases/{id}/close` (outcome + resolution summary mandatory), `POST/GET /cases/{id}/actions` (review actions) |
+| Audit | `GET /audit-events` (org_admin/auditor only, append-only) |
 
-Each of these must follow §5 verbatim and inherit the §2 envelope and §3 pagination unchanged.
+Each of these follows §5 verbatim and inherits the §2 envelope and §3 pagination
+(`limit`/`offset` clamped 1..100/0). Storage keys are never serialized.

@@ -197,3 +197,25 @@ Additional structural fact (from reading the file, not from execution): the `api
 7. **No CI executes these gates.** The pipeline gate results quoted in §1 were reported by the pipeline and re-run manually on this machine on 2026-10-17; there is no committed CI workflow in the repo running them automatically.
 8. **Tenant-isolation coverage is currently one endpoint deep.** test_org_scoping.py proves token-based org separation at the identity layer; the per-resource isolation matrix (API.md §5 rule 6) has no resources yet and arrives with Phases 2–6.
 9. **`.env.example` CORS line is unusable as-is** if ever loaded into the environment (§7 finding) — either fix the example to JSON-array form or add `env_file` support to Settings; recorded here because documentation-only workstreams cannot edit application code.
+
+
+---
+
+## Phase 2 update (2026-10-17) — 72 tests, single migration
+
+- The suite is **72 tests** (pytest, file-backed SQLite in WAL mode):
+  `apps\api\.venv\Scripts\python.exe -m pytest apps/api/tests -q` from the
+  repo root. New coverage: cookie session lifecycle + refresh, CSRF enforcement
+  (missing/wrong header, cross-origin, Bearer exemption), the four-role matrix,
+  bank-account change control (pending → human-only approve; change requests;
+  masking), document validation (magic bytes, mime mismatch, dedup, protected
+  cross-tenant download), processing idempotency + guarded transitions, fraud
+  rules (R2/R3/R4/R5 as executable tests), tenant isolation across the domain
+  surface.
+- Migrations are a single `0001_full_schema`; CI runs offline SQL, a
+  live-scratch upgrade/downgrade cycle, and `alembic check`.
+- Frontend gate unchanged: `node apps/web/node_modules/next/dist/bin/next build apps/web`
+  (static export) plus `npm run typecheck:contracts`.
+- GitHub Actions (`.github/workflows/ci.yml`) runs all of the above on
+  push/PR: backend job (install → migrations → tests), frontend job
+  (workspaces → contracts → build), compose YAML syntax check.

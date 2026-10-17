@@ -1,6 +1,7 @@
 # VeriPay — Database Design
 
-Status: design v1 · 2026-10-17. Implementation contract for the SQLAlchemy 2 models and Alembic migrations.
+Status: design v2 · 2026-10-17. Implementation contract for the SQLAlchemy 2 models and Alembic migrations.
+**Phase 2 update (canonical vocabulary v2, ADR [0007](adr/0007-canonical-model-vocabulary-v2.md)):** the owner's canonical model list supersedes the Phase 1 names. Mapping: `vendor_trusted_accounts` → **`vendor_bank_accounts`** (verification_status → `status`: pending/approved/rejected/revoked), `extracted_fields` → **`extraction_results`** (per document+version umbrella) + **`extraction_fields`** (per-field evidence rows), `duplicate_matches` → **`evidence_matches`** (kinds: bank_account | vendor | purchase_order | invoice_number | near_duplicate | field_overlap), `cases` → **`investigation_cases`**, `case_notes` → **`review_actions`**, `audit_logs` → **`audit_events`**. New tables: **`vendor_authorized_contacts`**, **`bank_account_change_requests`** (human-only approve/reject; an invoice can never approve an account or a change request), **`fraud_findings`** (per-signal child rows of an assessment, individually dispositionable), **`processing_jobs`** (durable idempotent state machine — ADR [0006](adr/0006-processing-backends.md)), **`sessions`** (durable httpOnly cookie sessions — ADR [0005](adr/0005-cookie-session-csrf.md)). Roles: `org_admin | finance_officer | reviewer | auditor`. The sections below keep their original numbering; where a name changed, the v2 name wins.
 
 ## 1. Conventions (apply to every table)
 
@@ -65,7 +66,7 @@ Exception note: no `organization_id` column — this table **is** the tenant.
 | `email` | String(320) | **globally unique** — the login key (Phase 1 decision; see §16) |
 | `password_hash` | String(255) | argon2/bcrypt via `core.security`; never plaintext, never serialized to API responses |
 | `full_name` | String(200) | |
-| `role` | String(32) | `owner` \| `admin` \| `analyst` \| `reviewer`; org creator gets `owner` |
+| `role` | String(32) | **`org_admin` \| `finance_officer` \| `reviewer` \| `auditor`** (Phase 2 canonical); org creator gets `org_admin` |
 | `status` | String(32) | `active` \| `disabled` |
 | `last_login_at` | timestamptz, nullable | |
 | `created_at` / `updated_at` | timestamptz | |
@@ -341,16 +342,9 @@ Constraints/indexes: `ix_al_org (organization_id)`; `ix_al_action (action)`; `ix
 
 ## 16. Migration plan
 
-| Migration | Phase | Tables created |
-|---|---|---|
-| `0001_core_identity` | 1 | organizations, users |
-| `0002_documents` | 2 | documents, extracted_fields |
-| `0003_vendor_procurement` | 3 | vendors, vendor_trusted_accounts, purchase_orders, invoices, invoice_line_items (+ `ALTER documents ADD vendor_id`) |
-| `0004_fraud` | 4 | fraud_assessments, duplicate_matches |
-| `0005_cases` | 5 | cases (incl. `triggering_assessment_id`), case_notes |
-| `0006_audit` | 6 | audit_logs |
+**Phase 2 (ADR 0007):** the staged chain was **squashed** — the repository was unpushed and no database existed in the wild, so the complete canonical v2 schema ships as ONE migration, **`0001_full_schema`** (20 tables incl. `sessions` and `processing_jobs`). Validated: offline `upgrade head --sql`, live `upgrade head` → `downgrade base` → `upgrade head` on a scratch SQLite file, and `alembic check` (no model drift). The compose API container runs `alembic upgrade head` before serving, so a fresh `docker compose up` yields a migrated database.
 
-Alembic targets PostgreSQL. On the development machine migrations can only be validated **offline** (`alembic upgrade head --sql`); the first live `upgrade head` against PostgreSQL happens under PROFILE A / CI (not runnable locally — no Docker).
+Alembic targets PostgreSQL. On the development machine migrations can only be validated **offline / on scratch SQLite**; the first live `upgrade head` against PostgreSQL happens under PROFILE A / CI.
 
 ## 17. SQLite fallback notes (ADR 0002)
 

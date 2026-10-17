@@ -4,9 +4,10 @@
 
 > **Made by Xander + Joka** 🛡️
 
-VeriPay ingests invoices and supporting documents, extracts structured fields with OCR,
-resolves vendors, retrieves corroborating evidence, computes **explainable** fraud signals,
-and routes critical inconsistencies to human investigators with a full audit trail.
+VeriPay ingests invoices and supporting documents, validates and stores them securely,
+resolves vendors, compares pay-to bank details against **independently verified** accounts
+on file, computes **explainable** fraud signals, and routes critical inconsistencies to
+human investigators with a full audit trail.
 
 VeriPay is a **decision-support system, not a payment system**. Its output is evidence,
 explanations, and review workflow — never money movement, and never a claim that an
@@ -20,86 +21,93 @@ implementation decision ([docs/ARCHITECTURE.md §2](docs/ARCHITECTURE.md)):
 5. A new bank account requires independent verification.
 6. Human review is mandatory for critical inconsistencies.
 
-## Status — what exists today
+## Status — what works today (Phase 2)
 
-This repository is the **Phase 1 foundation** ("walking skeleton"), plus the full database
-schema. Verified on this machine (2026-10-17):
+- **Secure backend & data layer** (`apps/api`, FastAPI + SQLAlchemy 2 + Alembic):
+  - **Auth**: httpOnly **cookie sessions** (durable `sessions` table, SHA-256-hashed
+    opaque tokens, server-side revocation) + CSRF double-submit middleware +
+    short-lived Bearer tokens + `POST /auth/refresh` + rate limiting with per-(IP,
+    email) lockout. **No tokens in browser localStorage** — ever.
+  - **Roles**: `org_admin · finance_officer · reviewer · auditor`, enforced per
+    endpoint (`tenancy/permissions.py`); organization-scoped tenancy on every
+    query (cross-org is 404).
+  - **Vendors & bank-account change control (R5)**: accounts start `pending`; ONLY a
+    human approves — with `verification_method` + reference/document; an uploaded
+    invoice can never approve an account. Change requests are approved/rejected by
+    reviewers and mint the approved account with the deciding human stamped.
+  - **Documents**: PDF/PNG/JPEG with **magic-byte signature checks**, size limits,
+    per-org SHA-256 dedup, tenant-prefixed private storage, protected downloads.
+  - **Processing**: durable, idempotent job state machine
+    (pending → processing → completed/failed/requires_manual_input) with a
+    ProcessingBackend seam — **inline by default** (no always-on worker; the Azure
+    demo stays scale-to-zero), optional Celery/Redis worker locally.
+  - **Fraud (rules-v0.1)**: deterministic, explainable signals — missing evidence
+    (≤ medium), unverified OCR input, provenance conflicts, duplicate candidates,
+    amount mismatch, **bank_account_unverified (severity floor: high, forces
+    human review)**. The EVC construct stays a NULL placeholder until its phase.
+  - **Investigations & audit**: investigation cases with mandatory human outcome +
+    resolution summary to close, review-action trail, and an append-only
+    `audit_events` reader (org_admin/auditor only).
+  - 20 tables · single squashed migration (`0001_full_schema`) · 35 REST routes ·
+    committed OpenAPI snapshot with a drift test.
+- **Frontend** (`apps/web`, Next.js App Router **static export** for Azure Static Web
+  Apps Free): landing, register, login wired to the real API, dashboard shell with
+  cookie-based session resolution and role labels.
+- **Docker** (`infrastructure/local/docker-compose.yml`): postgres + MinIO + API
+  (container **migrates before serving**) + web dev server; optional Redis/Celery
+  worker profile. Health checks and persistent volumes throughout. *Authored on a
+  machine without Docker — first real run happens on a Docker-equipped machine or CI.*
+- **CI** (`.github/workflows/ci.yml`): backend migrations + pytest, contracts
+  typecheck, frontend build, compose YAML check.
 
-- **Backend API** (`apps/api`, FastAPI): `GET /api/v1/health` (public) and the auth surface
-  — `POST /api/v1/auth/register` (creates organization + owner), `POST /api/v1/auth/login`
-  (OAuth2 password form), `GET /api/v1/auth/me`, `POST /api/v1/auth/logout` (server-side
-  token revocation). Router composition: [apps/api/app/api/v1/router.py](apps/api/app/api/v1/router.py).
-- **Database**: complete schema for all product tables (organizations, users, documents,
-  extracted_fields, vendors, vendor_trusted_accounts, purchase_orders, invoices,
-  invoice_line_items, fraud_assessments, duplicate_matches, cases, case_notes,
-  audit_logs) via Alembic migrations 0001–0006. PostgreSQL is canonical; SQLite is the
-  no-Docker dev/test fallback (ADR [0002](docs/adr/0002-postgres-canonical-sqlite-dev-fallback.md)).
-  Only the identity tables are exercised by endpoints today.
-- **Audit trail**: registrations, logins (success **and** failure), and logouts are written
-  to the append-only `audit_logs` table with ip / user-agent / request-id provenance
-  ([apps/api/app/modules/audit/service.py](apps/api/app/modules/audit/service.py)).
-- **Storage seam**: `StorageProvider` protocol with local-filesystem (default) and
-  MinIO/S3 implementations behind a settings-driven factory
-  ([apps/api/app/adapters/storage/](apps/api/app/adapters/storage/__init__.py)) — upload
-  endpoints arrive in Phase 2.
-- **Frontend** (`apps/web`, Next.js App Router **static export** for Azure Static Web Apps
-  Free): landing, register, and login pages wired to the real API, and a dashboard shell
-  (overview, vendors, invoices, investigations, settings placeholders) behind a client-side
-  guard. All authorization is enforced by the API (ADR [0004](docs/adr/0004-static-export-frontend.md)).
-- **Shared contracts**: `packages/api-contracts` (TypeScript mirrors of the REST contract;
-  to be replaced by OpenAPI-generated types — see
-  [packages/api-contracts/src/index.ts](packages/api-contracts/src/index.ts)).
-
-**Not yet implemented** (endpoint-wise): document upload/OCR, vendor & invoice management,
-fraud assessment (incl. the EVC placeholder), case workflow, and the audit-log reader API.
-The plan: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
-
-Pipeline gates (run by the infrastructure workstream; results reported, not re-run in this
-documentation pass): `pytest` exit 0 · `next build` exit 0 · contracts `tsc --noEmit` pass.
+Verified on this machine (2026-10-17): **72/72 backend tests**, frontend static build,
+migration upgrade/downgrade/check cycle, and a live end-to-end acceptance flow
+(register → login → vendor → approved bank account → PO → invoice upload → assess).
+Plan: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
 
 ## Architecture at a glance
 
 ```
   Next.js App Router, static export (apps/web)          ← Azure Static Web Apps Free / next dev
-        │  REST /api/v1  (Bearer JWT)
+        │  REST /api/v1   cookie session (browser) · Bearer JWT (programs) · CSRF on mutations
   FastAPI modular monolith (apps/api)                   ← api/v1 ──► modules ──► adapter seams
         │                              │
-  SQLAlchemy 2 (portable types)   StorageProvider / OcrProvider protocols
+  SQLAlchemy 2 (portable types)   StorageProvider / OcrProvider / ProcessingBackend seams
         │                              │
   PostgreSQL (canonical)          local filesystem (default) · MinIO/S3 (compose)
-  SQLite (dev/test fallback)      Azure Blob (later)
+  SQLite (dev/test fallback)      Azure Blob (later) · inline (default) / Celery (optional)
 ```
 
 One FastAPI service with enforced internal module boundaries (ADR
-[0001](docs/adr/0001-modular-monolith.md)); provider-agnostic storage/OCR adapter seams
-(ADR [0003](docs/adr/0003-provider-agnostic-adapters.md)). Full design, module dependency
+[0001](docs/adr/0001-modular-monolith.md)); provider-agnostic adapter seams (ADR
+[0003](docs/adr/0003-provider-agnostic-adapters.md)); cookie+CSRF auth strategy (ADR
+[0005](docs/adr/0005-cookie-session-csrf.md)); durable processing (ADR
+[0006](docs/adr/0006-processing-backends.md)); canonical model vocabulary (ADR
+[0007](docs/adr/0007-canonical-model-vocabulary-v2.md)). Full design, module dependency
 rules, the 8-step workflow, and execution profiles:
 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
-### Repository layout (as built)
+### Repository layout
 
 ```
 VeriPay/
 ├── apps/
-│   ├── api/                 # FastAPI backend (app/, alembic/, tests/, pyproject.toml)
-│   └── web/                 # Next.js static-export frontend (src/, out/ after build)
+│   ├── api/                 # FastAPI backend (app/, alembic/, tests/, Dockerfile, pyproject.toml)
+│   └── web/                 # Next.js static-export frontend (src/, out/ after build, Dockerfile)
 ├── packages/
 │   └── api-contracts/       # TypeScript mirrors of the REST contract (npm workspace)
 ├── infrastructure/
-│   └── local/               # docker-compose.yml (PROFILE A) — requires Docker
+│   └── local/               # docker-compose.yml (PROFILE A) — postgres/minio/api/web (+worker)
 ├── scripts/                 # dev-up/dev-down helpers (compose wrappers; need Docker)
 ├── docs/                    # architecture, database, API, plan, ADRs, cost, security, demo
+├── .github/workflows/ci.yml # CI: migrations + tests + builds
 ├── .env.example             # environment template (VERIPAY_* / NEXT_PUBLIC_*)
 └── package.json             # npm workspaces root (web + api-contracts)
 ```
 
-(The design docs in `docs/ARCHITECTURE.md §3.1` sketch `backend/`, `frontend/`, `deploy/`;
-the implemented layout uses `apps/`, `packages/`, and `infrastructure/` as above. Same
-content, different directory names.)
+## Quickstart — no Docker (verified on this machine)
 
-## Quickstart — no Docker (works on this machine)
-
-Prerequisites: Python 3.12 (`python`), Node 25 + npm 11. Windows cmd.exe is fine.
+Prerequisites: Python 3.12 (`python`), Node 22+ and npm 11. Windows cmd.exe is fine.
 
 ### 1. Backend (FastAPI) — http://localhost:8000
 
@@ -112,8 +120,7 @@ python -m venv .venv
 .venv\Scripts\pip install -e .[dev]
 
 :: Create the database schema (SQLite file apps\api\veripay.db by default).
-:: REQUIRED before first use — the app does not create tables on startup;
-:: without this step POST /auth/register fails with "no such table: users".
+:: REQUIRED before first use — the app does not create tables on startup.
 .venv\Scripts\python.exe -m alembic upgrade head
 
 .venv\Scripts\python.exe -m uvicorn app.main:app --reload
@@ -123,13 +130,13 @@ python -m venv .venv
 
 Check: `curl http://localhost:8000/api/v1/health` →
 `{"status":"ok","service":"veripay-api","version":"0.1.0"}`.
-Interactive API docs: `http://localhost:8000/docs`. The OpenAPI schema is served at
-`/openapi.json` (note: docs/API.md §1 says `/api/v1/openapi.json`; the committed snapshot
-lives at `apps/api/openapi.json` and is drift-tested by `tests/test_openapi_snapshot.py`).
+Interactive API docs: `http://localhost:8000/docs`. The committed OpenAPI snapshot
+lives at `apps/api/openapi.json` and is drift-tested by `tests/test_openapi_snapshot.py`.
 
 Defaults are dev-safe: SQLite at `apps/api/veripay.db` (gitignored), local-filesystem
-document storage, HS256 JWT with a dev-only secret. See [.env.example](.env.example) for
-every `VERIPAY_*` setting (copy to `.env` to override; `.env` is gitignored).
+document storage, HS256 JWT with a dev-only secret (production refuses to start
+without a real one). See [.env.example](.env.example) for every `VERIPAY_*` setting
+(copy to `.env` to override; `.env` is gitignored).
 
 ### 2. Frontend (Next.js) — http://localhost:3000
 
@@ -139,63 +146,54 @@ cd apps\web
 npm run dev
 ```
 
-Open http://localhost:3000 → **Create an account** (registers an organization and its
-owner) → you land on `/dashboard`. The API base URL defaults to `http://localhost:8000`
-(build-time `NEXT_PUBLIC_API_BASE_URL`, see [apps/web/.env.example](apps/web/.env.example);
-both forms with/without the `/api/v1` suffix are normalized).
+Open http://localhost:3000 → **Create an account** (registers an organization; you
+become its Organization Admin) → you land on `/dashboard`. Sign-in sets the httpOnly
+session cookie; no token is ever stored in web storage. The API base URL defaults to
+`http://localhost:8000` (build-time `NEXT_PUBLIC_API_BASE_URL`, see
+[apps/web/.env.example](apps/web/.env.example)).
 
 A 5-minute walkthrough of this flow: **[docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md)**.
 
-### Tests (optional)
+### Tests
 
 ```bat
 cd apps\api
-.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe -m pytest -q      :: 72 tests
 ```
 
-(Reported green by the pipeline gate; not re-run during this documentation pass.)
-
-## Docker path — requires Docker Desktop (not yet verified on this machine)
-
-[infrastructure/local/docker-compose.yml](infrastructure/local/docker-compose.yml) defines
-PROFILE A: PostgreSQL 16 (canonical DB), MinIO + bucket init, and the FastAPI API. The web
-app intentionally stays on the host (`npm run dev`) — it is a static export targeting
-Azure Static Web Apps.
-
-> **Honesty note:** Docker is not installed and WSL is unavailable on the machine that
-> authored this stack, so **the compose stack has never been executed**. Additionally,
-> the `api` service builds from `apps/api/Dockerfile`, which does **not exist yet** (see
-> the header comment in the compose file) — `--build` will fail until the backend
-> workstream adds it. Validate with
-> `docker compose -f infrastructure/local/docker-compose.yml config` on a Docker-equipped
-> machine before the first real run.
-
-On a Docker-equipped machine the wrappers are:
+## Docker path — requires Docker Desktop (compose files authored on a machine without Docker; first real run on CI/Docker-equipped machines)
 
 ```bat
-powershell -File scripts\dev-up.ps1     :: or scripts\dev-up.sh
-powershell -File scripts\dev-down.ps1   :: or scripts\dev-down.sh
+docker compose -f infrastructure\local\docker-compose.yml up --build
 ```
+
+Brings up postgres (migrated by the api container), MinIO (+ bucket), the API on
+:8000, and the web app on :3000. Optional Celery worker:
+`docker compose -f infrastructure\local\docker-compose.yml --profile worker up -d`.
+Details: [docs/DEPLOYMENT_LOCAL.md](docs/DEPLOYMENT_LOCAL.md).
+
+## Azure demo (PROFILE B) — planned, gated on owner approval
+
+**Nothing is provisioned.** The cost analysis and step-by-step runbook (Static Web
+Apps Free + Container Apps scale-to-zero + free-eligible PostgreSQL + Document
+Intelligence F0 + private Blob storage, with a full teardown plan) live in
+[docs/COST_ESTIMATE.md](docs/COST_ESTIMATE.md) and
+[docs/DEPLOYMENT_AZURE.md](docs/DEPLOYMENT_AZURE.md). Verdict from the analysis: GO
+on a ~$20 student budget with four hard conditions (confirm the PostgreSQL free
+offer before creating it, keep min replicas at 0, no ACR/Standard/Marketplace
+resources, one resource group torn down after the demo).
+
+## Security
+
+The model as implemented — cookie sessions, CSRF, RBAC, masking, upload validation,
+audit provenance — with honest "not secure yet" gaps:
+**[docs/SECURITY.md](docs/SECURITY.md)**.
 
 ## Documentation
 
-| Doc | Contents |
-|---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System overview, business invariants, 8-step workflow, module map, execution profiles, "what is never automated" |
-| [docs/DATABASE.md](docs/DATABASE.md) | Every table, constraint, migration plan, SQLite fallback notes |
-| [docs/API.md](docs/API.md) | REST contract: error envelope, pagination, org-scoping rules, endpoint phases |
-| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Phase plan 1–8 with acceptance checks and recorded deviations |
-| [docs/SECURITY.md](docs/SECURITY.md) | Auth model as implemented, JWT details, tenancy, honest security gaps, product safety rules |
-| [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) | 5-minute demo script for this foundation |
-| [docs/DEPLOYMENT_AZURE.md](docs/DEPLOYMENT_AZURE.md) | Azure Static Web Apps / PROFILE B target |
-| [docs/COST_ESTIMATE.md](docs/COST_ESTIMATE.md) | Cloud cost estimate vs. student budget |
-| ADRs | [0001 modular monolith](docs/adr/0001-modular-monolith.md) · [0002 PostgreSQL canonical / SQLite fallback](docs/adr/0002-postgres-canonical-sqlite-dev-fallback.md) · [0003 provider-agnostic adapters](docs/adr/0003-provider-agnostic-adapters.md) · [0004 static-export frontend](docs/adr/0004-static-export-frontend.md) |
-
-## Contributing notes
-
-- Do not `git commit` / `git push` — the owner reviews and commits.
-- New endpoints must satisfy every org-scoping rule in [docs/API.md §5](docs/API.md) and
-  get a mandatory tenant-isolation test; reviewers check rule by rule.
-- The no-go list in [docs/ARCHITECTURE.md §8](docs/ARCHITECTURE.md) is normative: no
-  payment authorization, no genuineness verdicts, no confidence laundering, no
-  fraud-from-absence, no automatic bank-account verification, no auto-closing critical cases.
+[ARCHITECTURE](docs/ARCHITECTURE.md) · [DATABASE](docs/DATABASE.md) ·
+[API](docs/API.md) · [IMPLEMENTATION_PLAN](docs/IMPLEMENTATION_PLAN.md) ·
+[SECURITY](docs/SECURITY.md) · [TESTING](docs/TESTING.md) ·
+[DEPLOYMENT_LOCAL](docs/DEPLOYMENT_LOCAL.md) ·
+[DEPLOYMENT_AZURE](docs/DEPLOYMENT_AZURE.md) · [COST_ESTIMATE](docs/COST_ESTIMATE.md) ·
+[DEMO_GUIDE](docs/DEMO_GUIDE.md) · [ADRs](docs/adr/0001-modular-monolith.md)

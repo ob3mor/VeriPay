@@ -6,9 +6,9 @@
 # `docker compose -f infrastructure/local/docker-compose.yml config` before the
 # first real run (CI / any Docker-equipped machine).
 #
-# The web app (apps/web) intentionally does NOT run in compose: it runs on the
-# HOST with `npm run dev` (Next.js static-export target for Azure Static Web
-# Apps). Only infrastructure + the API are containerized here.
+# The web app runs IN compose as a dev server (apps/web/Dockerfile) so
+# `docker compose up` gives the whole demo; the production target for the
+# frontend remains the static export on Azure Static Web Apps (PROFILE B).
 # =============================================================================
 
 name: veripay-local
@@ -71,8 +71,7 @@ services:
     restart: "no"
 
   # --- FastAPI backend (modular monolith) ---
-  # apps/api/Dockerfile is OWNED BY THE BACKEND ENGINEER and is deliberately NOT
-  # created in this workstream (infrastructure). The build fails until it exists.
+  # apps/api/Dockerfile migrates (alembic upgrade head) then serves uvicorn.
   api:
     build:
       context: ../../apps/api # relative to this file -> <repo>/apps/api
@@ -91,13 +90,59 @@ services:
       VERIPAY_JWT_SECRET: dev-only-insecure-secret-change-me
       VERIPAY_STORAGE_BACKEND: minio
       VERIPAY_OCR_PROVIDER: stub
+      VERIPAY_PROCESSING_BACKEND: inline
       VERIPAY_MINIO_ENDPOINT: http://minio:9000
       VERIPAY_MINIO_ACCESS_KEY: veripay
       VERIPAY_MINIO_SECRET_KEY: veripay-dev-change-me
       VERIPAY_MINIO_BUCKET: veripay-documents
       VERIPAY_MINIO_SECURE: "false"
+      # The browser reaches the API through the published host port.
+      VERIPAY_CORS_ORIGINS: http://localhost:3000
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # --- Next.js web app (dev server; the static export is for Azure SWA) ---
+  web:
+    build:
+      # Repo-root context so the npm workspace (contracts package) resolves.
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    environment:
+      # Browser-facing API base: the host-published API port.
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # --- Optional Celery worker (only with --profile worker) ---
+  # The default processing backend is "inline" (no worker needed — this is
+  # what keeps the Azure demo scale-to-zero). Start with:
+  #   docker compose -f infrastructure/local/docker-compose.yml --profile worker up -d
+  worker:
+    image: veripay-local-api:latest
+    build:
+      context: ../../apps/api
+      dockerfile: Dockerfile
+    profiles: ["worker"]
+    command: sh -c "pip install --no-cache-dir '.[celery]' && celery -A app.adapters.processing.celery_backend.celery_app worker --loglevel=info"
+    environment:
+      VERIPAY_DATABASE_URL: postgresql+psycopg://veripay:veripay_dev@postgres:5432/veripay
+      VERIPAY_JWT_SECRET: dev-only-insecure-secret-change-me
+      VERIPAY_REDIS_URL: redis://redis:6379/0
+      VERIPAY_OCR_PROVIDER: stub
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   # --- Redis: optional, only for background-worker work (opt-in profile) ---
   # Start with: docker compose -f infrastructure/local/docker-compose.yml --profile worker up -d

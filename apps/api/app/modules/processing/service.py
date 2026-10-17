@@ -126,6 +126,15 @@ def enqueue(
     return job, True
 
 
+def claim_job_by_id(db: Session, job_id: object) -> ProcessingJob:
+    """System-context lookup for worker processes (no org filter — the worker
+    is trusted infrastructure; the API surface never uses this path)."""
+    job = db.get(ProcessingJob, job_id)
+    if job is None:
+        raise AppError(ErrorCode.NOT_FOUND, "Processing job not found.")
+    return job
+
+
 def run_job(db: Session, job: ProcessingJob, fn: Callable[[Session, ProcessingJob], None]) -> ProcessingJob:
     """Claim and execute one job, recording the outcome durably.
 

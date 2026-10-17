@@ -126,3 +126,22 @@ Related: [ARCHITECTURE.md](ARCHITECTURE.md) · [DATABASE.md](DATABASE.md) · [AP
 - **Phase 1 — audit persistence arrived early (healthy deviation):** `audit_logs` was planned for Phase 6, but the Phase 1 build persisted the facade straight to the `audit_logs` table behind the unchanged `record_audit(...)` interface (migration `0006_audit` included; openapi/tests cover it). The Phase 6 swap therefore reduces to event-coverage work, not a persistence change.
 - **Phase 1 — auth shipped beyond plan (healthy deviation):** logout with server-side `jti` revocation, per-IP throttling and per-(IP, email) failed-login lockout landed in Phase 1 (`core/ratelimit.py`, `core/token_store.py`), ahead of the API.md §4 reservation.
 - **Phase 1 — role vocabulary unresolved at review time:** the API.md §5 matrix named a `viewer` role that neither code nor DATABASE.md defined. Superseded in Phase 2 by the owner's canonical role set (Organization Admin, Finance Officer, Reviewer, Auditor).
+
+
+### Phase 2 — Secure backend & data layer (owner's brief; DONE 2026-10-17)
+
+- Deliverables: canonical v2 models + squashed `0001_full_schema`; cookie
+  sessions + CSRF + refresh + RBAC (4 roles); rate-limited auth with lockout;
+  vendors/contacts/bank-accounts/change-requests (R5 human-only approval);
+  document ingestion (magic bytes, size, SHA-256 dedup, tenant storage,
+  protected downloads); processing state machine + ProcessingBackend seam
+  (inline default, Celery optional); procurement + duplicate-as-signal intake;
+  deterministic explainable fraud assessments (rules-v0.1, EVC stays NULL);
+  investigation cases + review actions (R6); audit-events endpoint;
+  OpenAPI snapshot regenerated; Docker image migrates before serving; CI
+  workflow; frontend moved to cookie+CSRF sessions with zero web storage.
+- Acceptance run: live end-to-end flow (register → login → vendor → approved
+  bank account → change request → PO → invoice upload → assess) executed via
+  HTTP on this machine; 72/72 pytest; frontend build green.
+- Guardrails: R1-R6 honored (no auto-approval code path exists; invoices never
+  approve accounts; EVC NULL; no genuineness vocabulary anywhere).
