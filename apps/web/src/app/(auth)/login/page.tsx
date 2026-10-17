@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError, ApiNetworkError, getApiRoot, loginRequest } from "@/lib/api";
+import { FormAlert } from "@/components/form-alert";
+import { loginRequest } from "@/lib/api";
 import { setAccessToken } from "@/lib/auth";
 
 /**
@@ -24,15 +25,20 @@ import { setAccessToken } from "@/lib/auth";
  * OAuth2 password form per docs/API.md §4). On success the server sets the
  * httpOnly session cookie (the durable session) and returns a short-lived
  * Bearer token that is kept IN MEMORY ONLY (src/lib/auth.ts — never
- * localStorage); the user is redirected to /dashboard. API failures degrade
- * to an inline message — the page never crashes when the backend is offline.
+ * localStorage); the user is redirected to /dashboard.
+ *
+ * Failures render through <FormAlert> (src/components/form-alert.tsx), which
+ * gives rate-limited attempts (429 `rate_limited` — per-IP throttle plus
+ * per-IP+email lockout, apps/api/app/core/ratelimit.py) their own amber
+ * "wait it out" treatment, keeps the no-enumeration credential message, and
+ * degrades to an offline hint — the page never crashes when the backend is.
  */
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,17 +51,10 @@ export default function LoginPage() {
       setAccessToken(access_token);
       router.replace("/dashboard");
     } catch (err) {
-      if (err instanceof ApiNetworkError) {
-        setError(
-          `Can't reach the API at ${getApiRoot()}. Start the backend and try again — your data was not sent anywhere.`
-        );
-      } else if (err instanceof ApiError) {
-        // Same message for unknown email and wrong password (no account
-        // enumeration) and always safe to display — docs/API.md §2/§4.
-        setError(err.message);
-      } else {
-        setError("Sign-in failed. Please try again.");
-      }
+      // Classification + rendering live in FormAlert. The credential-error
+      // message is identical for unknown email and wrong password (no
+      // account enumeration) and is safe to display — docs/API.md §2/§4.
+      setError(err);
     } finally {
       setSubmitting(false);
     }
@@ -70,14 +69,7 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
-          {error ? (
-            <div
-              role="alert"
-              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              {error}
-            </div>
-          ) : null}
+          {error ? <FormAlert error={error} fallbackTitle="Sign-in failed" /> : null}
 
           <div className="space-y-2">
             <Label htmlFor="email">Work email</Label>
@@ -90,6 +82,7 @@ export default function LoginPage() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
+              autoFocus
               disabled={submitting}
             />
           </div>

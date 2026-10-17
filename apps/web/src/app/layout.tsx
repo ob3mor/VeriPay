@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import { QueryProvider } from "@/components/query-provider";
 
@@ -8,6 +8,14 @@ export const metadata: Metadata = {
   title: "VeriPay — AI-powered invoice & payment fraud prevention",
   description:
     "VeriPay cross-checks every invoice against your vendors, purchase orders and trusted bank accounts, and routes inconsistencies to human review. It never authorizes payments automatically and never declares an invoice genuine.",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#102A43",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

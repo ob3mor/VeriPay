@@ -16,17 +16,20 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError, ApiNetworkError, getApiRoot, registerRequest } from "@/lib/api";
+import { FormAlert } from "@/components/form-alert";
+import { ApiError, registerRequest } from "@/lib/api";
 import { setAccessToken } from "@/lib/auth";
 
 /**
  * Registration — controlled form calling the REAL API (POST /api/v1/auth/register,
  * docs/API.md §4). Creates a NEW organization and its first user (role
- * org_admin); joining an existing org arrives later with invites. On 201 the
- * server sets the httpOnly session cookie and the short-lived Bearer token is
- * kept in memory only; the user lands on /dashboard. Server validation (422
- * details) is mapped to per-field errors; anything else degrades to an inline
- * message — never a crash.
+ * org_admin, apps/api/app/modules/auth/service.py); joining an existing org
+ * arrives later with invites. On 201 the server sets the httpOnly session
+ * cookie and the short-lived Bearer token is kept in memory only; the user
+ * lands on /dashboard. Server validation (422 details) is mapped to per-field
+ * errors; everything else renders through <FormAlert> — including the amber
+ * rate-limit treatment for 429 `rate_limited` (registration is throttled per
+ * IP, apps/api/app/api/v1/routes/auth.py). Never a crash.
  */
 export default function RegisterPage() {
   const router = useRouter();
@@ -36,7 +39,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<unknown>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -61,17 +64,10 @@ export default function RegisterPage() {
       setAccessToken(response.access_token);
       router.replace("/dashboard");
     } catch (err) {
-      if (err instanceof ApiNetworkError) {
-        setFormError(
-          `Can't reach the API at ${getApiRoot()}. Start the backend and try again — your data was not sent anywhere.`
-        );
-      } else if (err instanceof ApiError) {
-        // 409 conflict: "email already registered". 422: per-field details.
-        setFormError(err.message);
-        setFieldErrors(err.fieldErrors);
-      } else {
-        setFormError("Registration failed. Please try again.");
-      }
+      // 409 conflict: "email already registered". 422: per-field details.
+      // 429 rate_limited: FormAlert renders the amber wait-it-out alert.
+      setFormError(err);
+      if (err instanceof ApiError) setFieldErrors(err.fieldErrors);
     } finally {
       setSubmitting(false);
     }
@@ -100,21 +96,14 @@ export default function RegisterPage() {
       <CardHeader>
         <CardTitle className="text-xl">Create your workspace</CardTitle>
         <CardDescription>
-          Registers a new organization — you will be its first user (owner). Joining an existing
-          organization arrives later with invites.
+          Registers a new organization — you will be its first user (Organization Admin). Joining an
+          existing organization arrives later with invites.
         </CardDescription>
       </CardHeader>
 
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
-          {formError ? (
-            <div
-              role="alert"
-              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              {formError}
-            </div>
-          ) : null}
+          {formError ? <FormAlert error={formError} fallbackTitle="Registration failed" /> : null}
 
           <div className="space-y-2">
             <Label htmlFor="full_name">Full name</Label>

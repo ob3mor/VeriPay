@@ -1,20 +1,22 @@
-import { ShieldAlert } from "lucide-react";
+"use client";
 
-import { PlaceholderPage } from "@/components/placeholder-page";
+import { Suspense } from "react";
 
+import { SkeletonList } from "@/components/skeleton";
+
+import { InvestigationsWorkspace } from "./workspace";
+
+/**
+ * Investigations route (Prompt 05): case list + split-screen investigation
+ * workspace. Client page — the workspace reads the `?case=` (and `?doc=`)
+ * query params, which must sit inside a Suspense boundary so the static
+ * export can prerender the shell (Next.js CSR-bailout rule for
+ * useSearchParams; docs: Static Export rules in apps/web/README.md).
+ */
 export default function InvestigationsPage() {
   return (
-    <PlaceholderPage
-      title="Investigations"
-      description="Case management for flagged inconsistencies — assignment, notes and human dispositions."
-      phase="Phase 5"
-      icon={ShieldAlert}
-      points={[
-        "GET /cases · GET /cases/{id} — cases composed with the triggering assessment (docs/API.md §6).",
-        "POST /cases/{id}/assign · POST /cases/{id}/notes — case work for analyst and above.",
-        "POST /cases/{id}/close — the disposition is a human decision (R6), reviewer/admin/owner only.",
-        "Every list is org-scoped and paginated; another org's case is indistinguishable from a nonexistent one (404 — docs/API.md §5).",
-      ]}
-    />
+    <Suspense fallback={<SkeletonList rows={6} />}>
+      <InvestigationsWorkspace />
+    </Suspense>
   );
 }

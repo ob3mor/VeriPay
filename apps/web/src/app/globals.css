@@ -3,30 +3,45 @@
 @tailwind utilities;
 
 /*
- * shadcn/ui-style design tokens (HSL channel values, light theme).
+ * shadcn/ui-style design tokens (HSL channel values, light theme) — the
+ * owner's palette (Prompt 05):
+ *   primary    deep navy  #102A43  → 209 61% 16%
+ *   accent     teal       #14B8A6  → 173 80% 40%
+ *   background slate-50   #F8FAFC  → 210 40% 98%
+ *   card/popover white    #FFFFFF  → 0 0% 100%
+ *   warning    amber-500  #F59E0B  → 38 92% 50%
+ *   destructive red-600   #DC2626  → 0 72% 51%
  * Consumed by tailwind.config.ts — do not rename without updating both.
  */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 210 40% 98%;
+    --foreground: 209 61% 16%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 209 61% 16%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
+    --popover-foreground: 209 61% 16%;
+    --primary: 209 61% 16%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 209 61% 16%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    /* Owner's teal — accent-colored UI (badges, links, highlights). Buttons
+     * hover on `muted`, not `accent`; see tailwind.config.ts. */
+    --accent: 173 80% 40%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 209 61% 16%;
+    /* Success tone (teal family, owner accent): dark teal text for light
+     * tints — white would fail contrast on 10% teal backgrounds. */
+    --success: 173 80% 40%;
+    --success-foreground: 175 77% 26%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 209 61% 16%;
     --radius: 0.5rem;
   }
 }
@@ -42,5 +57,11 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Native <dialog> backdrop (confirm-dialog.tsx) — dim + blur behind the
+   * modal, matching the card surface above it. */
+  dialog::backdrop {
+    background: hsl(209 61% 16% / 0.5);
   }
 }

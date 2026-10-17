@@ -5,27 +5,47 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
+  ClipboardList,
   FileText,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
+  ScrollText,
   Settings,
-  ShieldAlert,
-  ShieldCheck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { AppLogo } from "@/components/app-logo";
 import { isSessionExpired, useMe, useSignOut } from "@/hooks/use-session";
 import { cn } from "@/lib/utils";
 
-/** Primary navigation — /dashboard itself is the Overview page. */
-const NAV_ITEMS = [
+/**
+ * Primary navigation — /dashboard itself is the Overview page.
+ * `roles` (when present) filters the entry to the given roles, mirroring the
+ * backend's role × action matrix (docs/API.md §5): audit events are visible
+ * to org_admin/auditor only, so the link is hidden from other roles AND the
+ * audit page itself renders a graceful restricted state on direct visits.
+ */
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles?: readonly string[];
+}
+
+const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/vendors", label: "Vendors", icon: Building2 },
   { href: "/dashboard/invoices", label: "Invoices", icon: FileText },
-  { href: "/dashboard/investigations", label: "Investigations", icon: ShieldAlert },
+  { href: "/dashboard/cases", label: "Cases", icon: ClipboardList },
+  {
+    href: "/dashboard/audit",
+    label: "Audit trail",
+    icon: ScrollText,
+    roles: ["org_admin", "auditor"],
+  },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
-] as const;
+];
 
 /**
  * Authenticated app shell: topbar + sidebar (desktop) with a scrollable nav
@@ -60,22 +80,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const email = me.data?.user.email ?? null;
   const organizationName = me.data?.organization.name ?? null;
+  const role = me.data?.user.role;
+  const navItems = NAV_ITEMS.filter(
+    (item) => !item.roles || (role !== undefined && item.roles.includes(role))
+  );
 
   return (
     <div className="flex min-h-screen">
       {/* Sidebar (desktop) */}
       <aside className="hidden w-60 shrink-0 flex-col border-r bg-muted/30 md:flex">
         <div className="flex h-16 items-center border-b px-5">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <ShieldCheck className="h-4 w-4" />
-            </span>
-            <span className="text-base font-semibold tracking-tight">VeriPay</span>
-          </Link>
+          <AppLogo size="sm" href="/" />
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon }) => {
             const active =
               pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
             return (
@@ -98,8 +117,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="border-t p-4 text-xs leading-relaxed text-muted-foreground">
-          <p className="font-medium text-foreground">Phase 1 scaffold</p>
-          <p>Live data arrives in Phase 2.</p>
+          <p className="font-medium text-foreground">Decision support only</p>
+          <p>VeriPay never authorizes payments or claims genuineness (R1/R2).</p>
         </div>
       </aside>
 
@@ -107,12 +126,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         {/* Topbar */}
         <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b bg-background/95 px-4 md:px-8">
           <div className="flex min-w-0 items-center gap-3">
-            <Link href="/" className="flex items-center gap-2 md:hidden">
-              <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <ShieldCheck className="h-4 w-4" />
-              </span>
-              <span className="font-semibold tracking-tight">VeriPay</span>
-            </Link>
+            <AppLogo size="sm" href="/" className="md:hidden" />
             <p className="hidden min-w-0 truncate text-sm text-muted-foreground md:block">
               {email ? (
                 <>
@@ -136,7 +150,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* Compact nav (mobile) */}
         <nav className="flex gap-1 overflow-x-auto border-b px-2 py-2 md:hidden" aria-label="Dashboard">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon }) => {
             const active =
               pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
             return (
