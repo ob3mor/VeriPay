@@ -253,7 +253,7 @@ Append-only history; the latest row per invoice is the current assessment.
 | `feature_snapshot` | JSON | every computed feature with its inputs and evidence references at assessment time |
 | `signals` | JSON | array of `{type, severity, field_refs, evidence_refs, message}`; typed vocabulary with default severities — single source of truth is ARCHITECTURE §8: `missing_evidence` (≤ `medium`), `unverified_input` (`low`), `field_provenance_conflict` (`medium`), `duplicate_candidate` (`medium`), `amount_mismatch` (`high`), `bank_account_unverified` (`high`, floor — may not be downgraded) |
 | `explanation` | JSON | ordered human-readable reasons — the "explainable" deliverable |
-| `evc` | JSON, nullable | **Phase 4 placeholder.** Reserved for the Phase 4 EVC construct; must remain NULL until Phase 4 defines it. No code may read or write it before then |
+| `evc` | JSON, nullable | **EVC v1 (Prompt-04, Phase 4).** Now populated on every assessment: `{policy_version, score, result_state, weights, thresholds, manual_verification_required, overrides[], features{state, weight, contribution, severity, signals, evidence_refs, observations}, uncertainty}` — the explainable structure whose score is never a fraud probability (R2). Legacy rows predating EVC keep NULL |
 | `status` | String(32) | `complete` \| `partial` \| `failed` |
 | `created_at` / `updated_at` | timestamptz | |
 
@@ -313,7 +313,7 @@ R6 enforcement: only `fraud` (system actor) auto-creates cases; the `cases` serv
 |---|---|---|
 | `id` | Uuid PK | |
 | `organization_id` | Uuid FK, NOT NULL | indexed |
-| `case_id` | Uuid FK → cases, NOT NULL | |
+| `case_id` | Uuid FK → cases, **nullable** (EVC v1: case-less override records) | **NULL = a finding disposition / match review written outside a case context** (the payload names the exact overridden entity); non-NULL rows are case-scoped investigation actions. Schema change carried by migration `0003` |
 | `author_id` | Uuid FK → users, nullable | NULL = system-generated note (e.g. auto-open reason) |
 | `kind` | String(32) | `comment` \| `decision` \| `evidence_reference` \| `system` |
 | `body` | Text | |

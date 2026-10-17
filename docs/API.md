@@ -163,7 +163,7 @@ programmatic clients use Bearer tokens (exempt from the CSRF header).
 | Purchase orders | `POST/GET /purchase-orders`, `GET /purchase-orders/{id}` |
 | Invoices | `POST/GET /invoices`, `GET /invoices/{id}` (duplicate vendor+number intake is allowed — evidence match + needs_review, never 409), `POST /invoices/{id}/resolve-vendor` |
 | Documents | `POST /documents` (multipart; PDF/PNG/JPEG magic-byte + size validation; per-org sha256 dedup → dedup returns the existing doc; inline processing job runs), `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/file` (protected, DB-resolved key), `GET /documents/{id}/extraction`, `GET /documents/{id}/fields`, `POST /documents/{id}/process` (idempotent retry) |
-| Fraud (rules-v0.1) | `POST /invoices/{id}/assess`, `GET /invoices/{id}/assessment` — deterministic explainable signals per ARCHITECTURE §8; `evc` stays NULL (Phase 4) |
+| Fraud (EVC v1) | `POST /invoices/{id}/assess`, `GET /invoices/{id}/assessment` — explainable 0-100 consistency score over six features with per-feature uncertainty states (`verified_agreement` / `confirmed_discrepancy` / `insufficient_evidence`), full structure in the `evc` response field (policy_version, weights, contributions, overrides, result state); result states force `needs_review`; critical assessments auto-open a case; never claims genuineness (R2) |
 | Cases (R6) | `POST/GET /cases`, `GET /cases/{id}`, `POST /cases/{id}/assign`, `POST /cases/{id}/close` (outcome + resolution summary mandatory), `POST/GET /cases/{id}/actions` (review actions) |
 | Audit | `GET /audit-events` (org_admin/auditor only, append-only) |
 

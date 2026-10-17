@@ -226,6 +226,6 @@ Forcing rule summary: severity `high` ⇒ `invoices.status = needs_review` (mach
 
 ## 10. Open questions
 
-- **EVC** (`fraud_assessments.evc` placeholder) — exact expansion and mechanics are deferred to the Phase 4 design; the column is reserved and stays `NULL` until then.
+- **EVC** — resolved in Prompt-04 (Phase 4): `fraud_assessments.evc` now carries the full EVC v1 structure (policy_version, six weighted features with per-feature uncertainty states, contributions, overrides, result state). The score is a consistency measure, never a fraud probability (R2); the policy file `app/modules/fraud/policy_v1.json` is the scoring contract and its invariant floors are cross-checked at load.
 - **Email uniqueness** — globally unique in Phase 1 (login key); revisit if the product later needs the same person in multiple orgs.
 - **Azure Blob storage adapter** timing (Phase 2+; needed for durable PROFILE B storage).
