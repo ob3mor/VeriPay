@@ -24,7 +24,7 @@ The backend interpreter is the **venv**, not the global Python: the global Pytho
 | Demo seed | `python scripts\seed_demo.py` (scratch DB) | 12 invoices, EVC 12/12, 3 cases, 15 audit events (§7) |
 | `docker compose config` / `up` | — | **NEVER RUN — Docker absent** (honesty header; §6) |
 
-History: the gate counts evolved 42 (Phase 1) → 72 (Phase 2 backend brief) → **301 collected / 295 passing** now; prior full inventories are in git history and §10.
+History: the gate counts evolved 42 (Phase 1) → 72 (Phase 2 backend brief) → 301 collected / 295 passing (2026-10-17 run) → **296 passed, 6 skipped** (2026-10-18, latest full run); prior full inventories are in git history and §10.
 
 ---
 
