@@ -45,7 +45,7 @@ export function CaseList({ cases, pending, error, onRetry, onOpen }: CaseListPro
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
       <table className="w-full text-left text-sm">
-        <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+        <thead className="border-b bg-panel/70 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
           <tr>
             <th scope="col" className="px-4 py-3 font-medium">Case</th>
             <th scope="col" className="px-4 py-3 font-medium">Title</th>
@@ -60,7 +60,7 @@ export function CaseList({ cases, pending, error, onRetry, onOpen }: CaseListPro
             const status = caseStatusPresentation(row.status);
             const outcome = row.outcome ? caseOutcomePresentation(String(row.outcome)) : null;
             return (
-              <tr key={row.id} className="border-b last:border-b-0 hover:bg-muted/30">
+              <tr key={row.id} className="border-b transition-colors last:border-b-0 hover:bg-secondary/40">
                 <td className="px-4 py-3 font-mono text-xs">{row.case_number}</td>
                 <td className="max-w-[22rem] truncate px-4 py-3 font-medium" title={row.title}>
                   {row.title}
@@ -80,7 +80,7 @@ export function CaseList({ cases, pending, error, onRetry, onOpen }: CaseListPro
                   <button
                     type="button"
                     onClick={() => onOpen(row.id)}
-                    className="rounded-md px-2 py-1 text-sm font-medium text-primary hover:bg-muted hover:underline"
+                    className="rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-secondary hover:text-accent hover:underline"
                   >
                     Open workspace
                   </button>

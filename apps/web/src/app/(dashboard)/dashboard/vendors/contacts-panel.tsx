@@ -78,7 +78,7 @@ export function ContactsPanel({ vendorId }: ContactsPanelProps) {
                     <p className="text-sm font-medium">
                       {contact.full_name}
                       {contact.is_primary ? (
-                        <span className="ml-2 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        <span className="ml-2 rounded-sm border border-primary/30 bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary">
                           Primary
                         </span>
                       ) : null}
@@ -214,7 +214,7 @@ function CreateContactDialog({
         </p>
       ) : null}
       {mutation.isSuccess ? (
-        <p className="flex items-center gap-1.5 text-sm text-success-foreground">
+        <p className="flex items-center gap-1.5 text-sm text-success">
           <Check className="h-4 w-4" />
           Contact added.
         </p>

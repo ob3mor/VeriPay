@@ -78,7 +78,7 @@ export function FileDropZone({ onFileSelected, disabled = false, hint, className
         aria-label="Choose a file to upload, or drop it here"
         className={cn(
           "flex w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          "focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card",
           isDragOver
             ? "border-primary bg-primary/5"
             : "border-border bg-muted/30 hover:border-primary/40 hover:bg-muted/50",

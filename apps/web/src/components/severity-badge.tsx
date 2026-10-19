@@ -9,28 +9,29 @@ import type { Severity } from "@veripay/api-contracts";
  * (docs/ARCHITECTURE.md §8.2). Pair it with StatusBadge for the honest
  * outcome label.
  *
- * Tones (severity → weight):
- *   low      → neutral outline
- *   medium   → warning
- *   high     → danger
- *   critical → danger, solid fill (the strongest visual treatment)
+ * The judgment ladder (one system across the whole product — the four tones
+ * are the only severity colors anywhere):
+ *   low      → quiet neutral chip (slate)
+ *   medium   → amber chip
+ *   high     → red chip
+ *   critical → solid red plate with navy ink (the strongest treatment)
  */
 const SEVERITY_PRESENTATION: Record<Severity, { label: string; className: string }> = {
   low: {
     label: "Low",
-    className: "bg-muted text-muted-foreground border-border",
+    className: "bg-secondary/80 text-secondary-foreground border-border",
   },
   medium: {
     label: "Medium",
-    className: "bg-warning/15 text-warning-foreground border-warning/40",
+    className: "bg-warning/15 text-warning border-warning/40",
   },
   high: {
     label: "High",
-    className: "bg-destructive/10 text-destructive border-destructive/30",
+    className: "bg-destructive/15 text-destructive border-destructive/40",
   },
   critical: {
     label: "Critical",
-    className: "bg-destructive text-destructive-foreground border-destructive",
+    className: "bg-destructive text-destructive-foreground border-destructive shadow-[0_1px_2px_hsl(214_56%_4%/0.5)]",
   },
 };
 
@@ -47,7 +48,7 @@ export function SeverityBadge({ severity, noneLabel = "None", className, ...prop
     return (
       <span
         className={cn(
-          "inline-flex items-center whitespace-nowrap rounded-full border bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground",
+          "inline-flex items-center whitespace-nowrap rounded-sm border bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground",
           className
         )}
         {...props}
@@ -63,7 +64,7 @@ export function SeverityBadge({ severity, noneLabel = "None", className, ...prop
     return (
       <span
         className={cn(
-          "inline-flex items-center whitespace-nowrap rounded-full border bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground",
+          "inline-flex items-center whitespace-nowrap rounded-sm border bg-secondary/80 px-2 py-0.5 text-xs font-medium text-secondary-foreground",
           className
         )}
         {...props}
@@ -76,7 +77,7 @@ export function SeverityBadge({ severity, noneLabel = "None", className, ...prop
   return (
     <span
       className={cn(
-        "inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex items-center whitespace-nowrap rounded-sm border px-2 py-0.5 text-xs font-medium tracking-wide",
         presentation.className,
         className
       )}

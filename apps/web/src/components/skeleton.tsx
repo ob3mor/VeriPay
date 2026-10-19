@@ -2,9 +2,11 @@ import { cn } from "@/lib/utils";
 
 /**
  * Loading skeleton — a shimmering placeholder block for content that has not
- * arrived yet. The bare primitive is visual-only (aria-hidden); use
- * <SkeletonList> (or set label) when a skeleton stands alone so screen
- * readers get one polite "Loading" announcement.
+ * arrived yet. Dark-world finish: the raised secondary tint instead of flat
+ * muted, so skeleton plates read as "surface being prepared", not holes.
+ * The bare primitive is visual-only (aria-hidden); use <SkeletonList> (or set
+ * label) when a skeleton stands alone so screen readers get one polite
+ * "Loading" announcement.
  */
 export interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Render as an accessible "Loading" status region. Default false — the
@@ -18,7 +20,7 @@ export function Skeleton({ label = false, className, ...props }: SkeletonProps) 
       aria-hidden={!label ? true : undefined}
       role={label ? "status" : undefined}
       aria-label={label ? "Loading" : undefined}
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      className={cn("animate-pulse rounded-md bg-secondary/70", className)}
       {...props}
     />
   );

@@ -200,7 +200,7 @@ function CloseCaseDialog({
           id="close-outcome"
           value={outcome}
           onChange={(event) => setOutcome(event.target.value as CaseOutcome)}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex h-10 w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
         >
           <option value="" disabled>
             Choose an outcome…
@@ -224,7 +224,7 @@ function CloseCaseDialog({
           onChange={(event) => setSummary(event.target.value)}
           rows={5}
           placeholder="What was reviewed, what was decided, and why — this is the audit record of the human decision."
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
         />
         {handleError("summary") ? (
           <p className="text-xs text-destructive">{handleError("summary")}</p>

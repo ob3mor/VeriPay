@@ -1,22 +1,29 @@
 import type { Config } from "tailwindcss";
+import defaultTheme from "tailwindcss/defaultTheme";
 
 /**
  * Tailwind v3 config wired to the shadcn/ui-style CSS variables defined in
- * src/app/globals.css. Deliberately kept on the 3.x line (Phase 1 scaffold
- * standard) — migrating to v4 requires rewriting these token definitions.
+ * src/app/globals.css — the "examiner's bench" dark world. Deliberately kept
+ * on the 3.x line (Phase 1 scaffold standard) — migrating to v4 requires
+ * rewriting these token definitions.
  *
- * Owner palette (Prompt 05):
- *   primary   deep navy #102A43  → hsl(209 61% 16%)   (--primary)
- *   accent    teal       #14B8A6  → hsl(173 80% 40%)   (--accent)
- *   background slate-50  #F8FAFC  → hsl(210 40% 98%)   (--background)
- *   surface   white      #FFFFFF  → hsl(0 0% 100%)     (--card / --popover)
- *   warning   amber-500  #F59E0B  → hsl(38 92% 50%)    (--warning)
- *   danger    red-600    #DC2626  → hsl(0 72% 51%)     (--destructive)
+ * Layer model:
+ *   bench    --background  deep navy ground
+ *   panel    --panel       sidebar / toolbar layer (one step off the bench)
+ *   plate    --card        content surfaces (machined edge via shadow-plate)
+ *   light    --primary     the brand cyan (≈ #28bce2, brand #1CA6C8 family
+ *                          brightened for dark grounds) — actions, focus,
+ *                          informational state only
+ *   judgment --warning / --destructive / --success — amber/red/jade, spent
+ *              only where the data is a judgment (badges, meters, alerts)
  *
- * Supporting neutrals are Tailwind slate steps so borders/muted text stay
- * legible against the slate-50 background. Every color is defined ONLY as a
- * CSS variable in globals.css and referenced here via hsl(var(--…)) — do not
- * rename one side without the other.
+ * Type voices (loaded once in src/app/layout.tsx via next/font):
+ *   --font-sans     Public Sans   — UI, body, labels
+ *   --font-display  Source Serif 4 — titles, page headers, charter voice
+ *   --font-mono     Spline Sans Mono — IDs, amounts, audit actions, scores
+ *
+ * Every color is defined ONLY as a CSS variable in globals.css and referenced
+ * here via hsl(var(--…)) — do not rename one side without the other.
  */
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
@@ -28,6 +35,7 @@ const config: Config = {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        panel: "hsl(var(--panel))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -52,10 +60,9 @@ const config: Config = {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
         },
-        // Owner's teal. In shadcn semantics `accent` doubles as a hover
-        // background; the button ghost variant therefore hovers on `muted`
-        // (see src/components/ui/button.tsx) so raw teal stays reserved for
-        // accent-colored UI: badges, links, highlights.
+        // Brand cyan for accent-colored UI (links, active nav, highlights).
+        // Hover backgrounds use `secondary`/`muted`, not the accent itself —
+        // the instrument light never smears under the cursor.
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
@@ -69,10 +76,40 @@ const config: Config = {
           foreground: "hsl(var(--card-foreground))",
         },
       },
+      fontFamily: {
+        sans: ["var(--font-sans)", ...defaultTheme.fontFamily.sans],
+        display: ["var(--font-display)", "Georgia", "serif"],
+        mono: ["var(--font-mono)", ...defaultTheme.fontFamily.mono],
+      },
+      boxShadow: {
+        // The machined plate: hairline top light, tight contact shadow, long
+        // soft fall — offset + blur, never a flat halo.
+        plate:
+          "inset 0 1px 0 0 hsl(210 40% 90% / 0.05), 0 1px 2px hsl(214 56% 4% / 0.5), 0 16px 40px -20px hsl(214 56% 4% / 0.7)",
+        raise:
+          "inset 0 1px 0 0 hsl(210 40% 90% / 0.05), 0 2px 6px hsl(214 56% 4% / 0.45), 0 10px 24px -12px hsl(214 56% 4% / 0.6)",
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      // 12 is the review-queue tint of the design system (badge/nav fills at
+      // "cyan/12" per DESIGN.md) but sits outside Tailwind's default opacity
+      // scale (0,5,10,15,…), so `/12` modifiers generated no CSS without it.
+      opacity: {
+        12: "0.12",
+      },
+      keyframes: {
+        scanline: {
+          from: { transform: "translateY(4%)", opacity: "0" },
+          "12%": { opacity: "1" },
+          "88%": { opacity: "1" },
+          to: { transform: "translateY(92%)", opacity: "0" },
+        },
+      },
+      animation: {
+        scanline: "scanline 5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate",
       },
     },
   },

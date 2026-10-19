@@ -169,7 +169,7 @@ export default function SettingsPage() {
                     Role
                   </dt>
                   <dd className="mt-1">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                    <span className="inline-flex items-center gap-1.5 rounded-sm border border-primary/30 bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary">
                       <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
                       {roleLabel(data.user.role)}
                     </span>
@@ -244,7 +244,7 @@ export default function SettingsPage() {
                     Signal vocabulary with default severities and forcing rules
                   </caption>
                   <thead>
-                    <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr className="border-b bg-panel/70 text-left font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                       <th scope="col" className="px-3 py-2 font-medium">Signal</th>
                       <th scope="col" className="px-3 py-2 font-medium">Default severity</th>
                       <th scope="col" className="px-3 py-2 font-medium">Meaning</th>
@@ -329,7 +329,7 @@ function Fact({ term, value, mono = false }: { term: string; value: string; mono
 function Severity({ severityLabel }: { severityLabel: string }) {
   if (severityLabel.includes("–") || severityLabel.includes("(")) {
     return (
-      <span className="inline-flex whitespace-nowrap rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
+      <span className="inline-flex whitespace-nowrap rounded-sm border border-border bg-secondary/80 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
         {severityLabel}
       </span>
     );

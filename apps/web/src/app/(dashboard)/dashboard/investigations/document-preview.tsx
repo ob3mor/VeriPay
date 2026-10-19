@@ -247,7 +247,7 @@ function DocumentView({ documentId }: { documentId: string }) {
           </a>
         </div>
       ) : (
-        <div className="flex h-48 items-center justify-center rounded-md border bg-muted/40" role="status" aria-label="Loading document">
+        <div className="flex h-48 items-center justify-center rounded-md border bg-secondary/50" role="status" aria-label="Loading document">
           <span className="text-sm text-muted-foreground">Loading document…</span>
         </div>
       )}

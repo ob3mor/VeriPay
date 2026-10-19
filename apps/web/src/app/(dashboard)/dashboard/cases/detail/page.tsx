@@ -68,10 +68,10 @@ import {
 import type { CaseCloseIn, CaseOutcome, FraudFindingOut } from "@veripay/api-contracts";
 
 const SELECT_CLASS =
-  "h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+  "h-10 w-full rounded-md border border-input bg-background/60 px-3 text-sm shadow-[inset_0_1px_2px_hsl(214_56%_4%/0.4)] transition-[border-color,box-shadow] focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-transparent";
 
 const TEXTAREA_CLASS =
-  "min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+  "min-h-24 w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm shadow-[inset_0_1px_2px_hsl(214_56%_4%/0.4)] transition-[border-color,box-shadow] placeholder:text-muted-foreground/70 focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-transparent";
 
 const OUTCOMES: CaseOutcome[] = [
   "fraud_confirmed",
@@ -421,7 +421,7 @@ function CaseDetailView() {
                           <table className="w-full text-sm">
                             <caption className="sr-only">Findings from the assessment</caption>
                             <thead>
-                              <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                              <tr className="border-b bg-panel/70 text-left font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                                 <th scope="col" className="px-3 py-2 font-medium">Severity</th>
                                 <th scope="col" className="px-3 py-2 font-medium">Finding</th>
                                 <th scope="col" className="px-3 py-2 font-medium">Disposition</th>
@@ -529,7 +529,7 @@ function CaseDetailView() {
                         <table className="w-full text-sm">
                           <caption className="sr-only">Vendor bank accounts and verification status</caption>
                           <thead>
-                            <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                            <tr className="border-b bg-panel/70 text-left font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                               <th scope="col" className="px-3 py-2 font-medium">Holder</th>
                               <th scope="col" className="px-3 py-2 font-medium">Bank</th>
                               <th scope="col" className="px-3 py-2 font-medium">Account</th>
@@ -542,7 +542,7 @@ function CaseDetailView() {
                                 <td className="px-3 py-2">
                                   {account.account_holder_name}
                                   {account.is_current ? (
-                                    <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                                    <span className="ml-2 rounded-sm border border-border bg-secondary/80 px-1.5 py-0.5 text-xs text-secondary-foreground">
                                       current
                                     </span>
                                   ) : null}
@@ -591,7 +591,7 @@ function CaseDetailView() {
                     return (
                       <li key={action.id} className="border-b border-border/60 pb-4 last:border-0 last:pb-0">
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground">
+                          <span className="rounded-sm border border-border bg-secondary/80 px-1.5 py-0.5 font-medium text-secondary-foreground">
                             {ACTION_TYPE_LABELS[action.action_type] ?? action.action_type}
                           </span>
                           <span>{actorLabel(action.actor_user_id, meId)}</span>

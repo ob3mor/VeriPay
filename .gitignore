@@ -19,6 +19,10 @@ __pycache__/
 data/
 *.db
 
+# Tooling working dirs (agent/workflow scratch state)
+.zcode/
+.impeccable/
+
 # Build/incremental artifacts
 *.tsbuildinfo
 *.egg-info/

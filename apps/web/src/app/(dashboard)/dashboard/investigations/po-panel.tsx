@@ -115,7 +115,7 @@ export function PoPanel({ invoice }: { invoice: InvoiceOut | null }) {
           ) : (
             <div className="overflow-hidden rounded-md border">
               <table className="w-full text-left text-sm">
-                <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                <thead className="border-b bg-panel/70 font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   <tr>
                     <th scope="col" className="px-3 py-2 font-medium">Description</th>
                     <th scope="col" className="px-3 py-2 font-medium">Qty</th>
@@ -169,7 +169,7 @@ function AmountObservation({
     );
   }
   return (
-    <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+    <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
       The displayed amounts differ{sameCurrency ? "" : " (and the currencies are not recorded as the same)"}. The
       recorded machine observation is the <span className="font-medium">amount_mismatch</span>{" "}
       finding — see the risk findings panel for its severity and message.

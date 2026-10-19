@@ -104,7 +104,7 @@ export function ActionsFeed({ caseId, canContribute }: ActionsFeedProps) {
               onChange={(event) => setDraft(event.target.value)}
               rows={3}
               placeholder="What you checked, what you found, what remains open — visible to every member of the organization."
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
             />
             <div className="flex flex-wrap items-center gap-3">
               <Button
@@ -137,8 +137,8 @@ function ActionItem({ action }: { action: ReviewActionOut }) {
         <span
           className={
             system
-              ? "rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-              : "rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+              ? "rounded-sm border border-border bg-secondary/80 px-2 py-0.5 text-xs text-secondary-foreground"
+              : "rounded-sm border border-primary/30 bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary"
           }
         >
           {label}

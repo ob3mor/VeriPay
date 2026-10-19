@@ -126,7 +126,7 @@ function FieldsForDocument({
           />
         ) : doc && doc.processing_status === "failed" ? (
           <div className="space-y-3">
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm">
               <p className="font-semibold text-destructive">Processing failed</p>
               <p className="mt-1 break-words text-foreground/80">
                 {extractionQuery.data?.error ?? "The processing job recorded a failure for this document."}
@@ -297,7 +297,7 @@ function FieldRow({
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="Corrected value"
                 aria-label={`Corrected value for ${FIELD_LABELS[field.field_name] ?? field.field_name}`}
-                className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-8 flex-1 rounded-md border border-input bg-background/60 px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <Button
                 size="sm"

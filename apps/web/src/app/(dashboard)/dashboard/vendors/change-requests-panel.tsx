@@ -290,7 +290,7 @@ function CreateRequestDialog({
           onChange={(event) => setReason(event.target.value)}
           rows={3}
           placeholder="Why the pay-to account is changing — bank letter reference, contract change, etc."
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
         />
       </div>
       {localError ? <p className="text-sm text-destructive">{localError}</p> : null}
@@ -374,7 +374,7 @@ function DecisionDialog({
           onChange={(event) => setNote(event.target.value)}
           rows={3}
           placeholder="Optional note recorded with the decision."
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
         />
       </div>
       {mutation.isError ? (

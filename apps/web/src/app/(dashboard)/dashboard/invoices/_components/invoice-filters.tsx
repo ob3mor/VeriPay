@@ -29,7 +29,7 @@ export interface InvoiceFiltersProps {
 }
 
 const SELECT_CLASS =
-  "h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+  "h-10 w-full rounded-md border border-input bg-background/60 px-3 text-sm shadow-[inset_0_1px_2px_hsl(214_56%_4%/0.4)] transition-[border-color,box-shadow] focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * Search + filters for the invoices list. All of it runs client-side over the
@@ -41,7 +41,7 @@ export function InvoiceFilters({ value, onChange }: InvoiceFiltersProps) {
   const set = (patch: Partial<InvoiceFiltersValue>) => onChange({ ...value, ...patch });
 
   return (
-    <div className="space-y-4 rounded-lg border bg-card p-4">
+    <div className="space-y-4 rounded-lg border bg-card p-4 shadow-plate">
       <div className="relative">
         <Search
           aria-hidden="true"

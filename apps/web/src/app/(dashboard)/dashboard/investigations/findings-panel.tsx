@@ -218,8 +218,8 @@ function FindingItem({ finding, canVerify }: { finding: FraudFindingOut; canVeri
           <span
             className={
               finding.disposition === "open"
-                ? "rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                : "rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                ? "rounded-sm border border-border bg-secondary/80 px-2 py-0.5 text-xs text-secondary-foreground"
+                : "rounded-sm border border-primary/30 bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary"
             }
           >
             {dispositionLabel}
@@ -236,7 +236,7 @@ function FindingItem({ finding, canVerify }: { finding: FraudFindingOut; canVeri
               rows={2}
               placeholder="Required: what you checked and why — the reason is recorded with the decision."
               aria-label="Disposition reason (required)"
-              className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-full rounded-md border border-input bg-background/60 px-2 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <div className="flex flex-wrap items-center gap-2">
               <Button

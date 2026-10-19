@@ -186,16 +186,20 @@ export default function InvoiceUploadPage() {
         <PageHeader title="Upload invoice document" />
         <div
           role="note"
-          className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-card px-6 py-14 text-center"
+          className="flex flex-col items-center justify-center rounded-lg border border-border/70 bg-card/50 px-6 py-16 text-center"
         >
           <span
             aria-hidden="true"
-            className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted"
+            className="relative mb-5 flex h-16 w-14 items-center justify-center"
           >
-            <CircleAlert className="h-6 w-6 text-muted-foreground" />
+            <span className="absolute inset-0 rounded-sm border border-dashed border-border" />
+            <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-b-sm bg-primary/70" />
+            <span className="flex h-11 w-9 items-center justify-center rounded-[3px] border border-border bg-secondary/60 shadow-raise">
+              <CircleAlert className="h-5 w-5 text-muted-foreground" />
+            </span>
           </span>
-          <p className="text-sm font-semibold text-foreground">Uploading is restricted</p>
-          <p className="mt-1.5 max-w-md text-sm text-muted-foreground">
+          <p className="font-display text-lg font-semibold text-foreground">Uploading is restricted</p>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
             You are signed in as {role ? roleLabel(role) : "a role without upload permission"}. Uploading
             documents requires the finance officer, reviewer, or organization admin role (docs/API.md §5
             role × action matrix), so this page made no upload. The invoice list itself remains available to you.
@@ -233,7 +237,7 @@ export default function InvoiceUploadPage() {
             {validationError && (
               <p
                 role="alert"
-                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
               >
                 <CircleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
                 {validationError}
@@ -248,7 +252,7 @@ export default function InvoiceUploadPage() {
                   value={kind}
                   onChange={(event) => setKind(event.target.value as DocumentKind)}
                   disabled={uploading}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-10 w-full rounded-md border border-input bg-background/60 px-3 text-sm focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {KIND_OPTIONS.map(([value, label]) => (
                     <option key={value} value={value}>
@@ -264,7 +268,7 @@ export default function InvoiceUploadPage() {
                   value={vendorId}
                   onChange={(event) => setVendorId(event.target.value)}
                   disabled={uploading || vendors.length === 0}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-10 w-full rounded-md border border-input bg-background/60 px-3 text-sm focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="">No vendor context</option>
                   {vendors.map((vendor) => (

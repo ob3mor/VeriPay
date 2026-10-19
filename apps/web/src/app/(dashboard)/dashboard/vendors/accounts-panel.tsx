@@ -179,7 +179,7 @@ function AccountRow({
           <p className="text-sm font-medium">
             {account.account_holder_name}
             {account.is_current ? (
-              <span className="ml-2 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+              <span className="ml-2 rounded-sm border border-primary/30 bg-primary/12 px-2 py-0.5 text-xs font-medium text-primary">
                 Current on file
               </span>
             ) : null}
@@ -472,7 +472,7 @@ function VerifyAccountDialog({
           id="verify-method"
           value={method}
           onChange={(event) => setMethod(event.target.value as BankAccountVerificationMethod)}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex h-10 w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
         >
           <option value="" disabled>
             Choose the method…
@@ -500,7 +500,7 @@ function VerifyAccountDialog({
           id="verify-document"
           value={documentId}
           onChange={(event) => setDocumentId(event.target.value)}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex h-10 w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
         >
           <option value="">
             {documentsQuery.isPending
@@ -593,7 +593,7 @@ function RejectAccountDialog({
           onChange={(event) => setNote(event.target.value)}
           rows={3}
           placeholder="Why this account is rejected (recorded with the decision)."
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
         />
       </div>
       {mutation.isError ? (

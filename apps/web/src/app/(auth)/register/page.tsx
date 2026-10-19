@@ -94,7 +94,7 @@ export default function RegisterPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Create your workspace</CardTitle>
+        <CardTitle className="font-display text-xl font-semibold">Create your workspace</CardTitle>
         <CardDescription>
           Registers a new organization — you will be its first user (Organization Admin). Joining an
           existing organization arrives later with invites.
@@ -224,7 +224,10 @@ export default function RegisterPage() {
           </Button>
           <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+            <Link
+              href="/login"
+              className="font-medium text-primary underline-offset-4 hover:text-accent hover:underline"
+            >
               Sign in
             </Link>
           </p>

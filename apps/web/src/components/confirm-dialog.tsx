@@ -94,9 +94,9 @@ export function ConfirmDialog({
       onCancel={handleCancel}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
-      className="w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-border bg-card p-6 text-card-foreground shadow-lg"
+      className="w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-border bg-card p-6 text-card-foreground shadow-plate"
     >
-      <h2 id={titleId} className="text-lg font-semibold">
+      <h2 id={titleId} className="font-display text-lg font-semibold">
         {title}
       </h2>
       <div id={descriptionId} className="mt-2 text-sm text-muted-foreground">

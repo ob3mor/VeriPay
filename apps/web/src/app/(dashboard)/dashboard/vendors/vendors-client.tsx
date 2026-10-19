@@ -125,7 +125,7 @@ function VendorsList({ onOpen }: { onOpen: (vendorId: string) => void }) {
       ) : (
         <div className="overflow-hidden rounded-lg border bg-card">
           <table className="w-full text-left text-sm">
-            <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="border-b bg-panel/70 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th scope="col" className="px-4 py-3 font-medium">Name</th>
                 <th scope="col" className="px-4 py-3 font-medium">Legal name</th>
@@ -150,7 +150,7 @@ function VendorsList({ onOpen }: { onOpen: (vendorId: string) => void }) {
 
 function VendorRow({ vendor, onOpen }: { vendor: VendorOut; onOpen: (id: string) => void }) {
   return (
-    <tr className="border-b last:border-b-0 hover:bg-muted/30">
+    <tr className="border-b transition-colors last:border-b-0 hover:bg-secondary/40">
       <td className="px-4 py-3 font-medium">{vendor.display_name}</td>
       <td className="px-4 py-3 text-muted-foreground">{vendor.legal_name ?? "—"}</td>
       <td className="px-4 py-3 font-mono text-xs">{vendor.tax_id_masked ?? "—"}</td>
@@ -161,7 +161,7 @@ function VendorRow({ vendor, onOpen }: { vendor: VendorOut; onOpen: (id: string)
         <button
           type="button"
           onClick={() => onOpen(vendor.id)}
-          className="rounded-md px-2 py-1 text-sm font-medium text-primary hover:bg-muted hover:underline"
+          className="rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-secondary hover:text-accent hover:underline"
         >
           Manage
         </button>
@@ -262,7 +262,7 @@ function CreateVendorDialog({
           onChange={(event) => setNotes(event.target.value)}
           rows={3}
           placeholder="Free-text context for analysts (optional)"
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-card"
         />
       </div>
       {localError ? <p className="text-sm text-destructive">{localError}</p> : null}

@@ -15,11 +15,12 @@ export interface ErrorStateProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * Error-state panel. It never invents a cause: the message shown is the
- * API's user-safe envelope message (docs/API.md §2) when present, the
- * network-failure sentence when fetch itself rejected, or a generic
- * unexpected-error line otherwise. The `request_id` from the envelope is
- * surfaced so a user can quote it against server logs.
+ * Error-state panel, dark-world treatment: the judgment red states a failure
+ * on its own plate — never a modal, never a guess. It never invents a cause:
+ * the message shown is the API's user-safe envelope message (docs/API.md §2)
+ * when present, the network-failure sentence when fetch itself rejected, or a
+ * generic unexpected-error line otherwise. The `request_id` from the envelope
+ * is surfaced so a user can quote it against server logs.
  */
 export function ErrorState({
   error,
@@ -53,15 +54,18 @@ export function ErrorState({
   return (
     <div
       role="alert"
-      className={cn("rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-8", className)}
+      className={cn(
+        "rounded-lg border border-destructive/35 bg-destructive/10 px-6 py-8 shadow-[inset_0_1px_0_0_hsl(0_91%_71%/0.06)]",
+        className
+      )}
       {...props}
     >
-      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-destructive">{heading}</p>
-          <p className="mt-1 max-w-xl break-words text-sm text-foreground/80">{body}</p>
+          <p className="font-medium text-destructive">{heading}</p>
+          <p className="mt-1 max-w-xl break-words text-sm leading-relaxed text-foreground/85">{body}</p>
           {requestId && (
-            <p className="mt-1 font-mono text-xs text-muted-foreground">Request ID: {requestId}</p>
+            <p className="mt-1.5 font-mono text-xs text-muted-foreground">Request ID: {requestId}</p>
           )}
         </div>
         {onRetry && (

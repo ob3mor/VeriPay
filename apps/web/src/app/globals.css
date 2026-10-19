@@ -3,46 +3,51 @@
 @tailwind utilities;
 
 /*
- * shadcn/ui-style design tokens (HSL channel values, light theme) — the
- * owner's palette (Prompt 05):
- *   primary    deep navy  #102A43  → 209 61% 16%
- *   accent     teal       #14B8A6  → 173 80% 40%
- *   background slate-50   #F8FAFC  → 210 40% 98%
- *   card/popover white    #FFFFFF  → 0 0% 100%
- *   warning    amber-500  #F59E0B  → 38 92% 50%
- *   destructive red-600   #DC2626  → 0 72% 51%
- * Consumed by tailwind.config.ts — do not rename without updating both.
+ * VeriPay design tokens — "the examiner's bench" (dark world).
+ *
+ * Physical scene: fraud analysts and auditors read dense evidence for long
+ * sessions, often in low-light ops rooms. The interface is a deep navy bench
+ * in three ground layers (bench → panel → plate) separated by hairlines; the
+ * brand cyan is the instrument light (actions, focus, informational state)
+ * and judgment colors (amber/red/jade) are spent only where the data is
+ * judgment. Type: Source Serif 4 titles, Public Sans UI, Spline Sans Mono
+ * measurement (wired via next/font in src/app/layout.tsx).
+ *
+ * Channel values consumed by tailwind.config.ts — do not rename without
+ * updating both. Contrast budget: body/secondary text ≥ 4.5:1 against the
+ * card layer (muted-foreground ≈ 7:1, foreground ≈ 15:1); solid fills pair
+ * with the navy-ink *-foreground values (≈ 6.4:1 or better on every fill).
  */
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 209 61% 16%;
-    --card: 0 0% 100%;
-    --card-foreground: 209 61% 16%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 209 61% 16%;
-    --primary: 209 61% 16%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 209 61% 16%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    /* Owner's teal — accent-colored UI (badges, links, highlights). Buttons
-     * hover on `muted`, not `accent`; see tailwind.config.ts. */
-    --accent: 173 80% 40%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 209 61% 16%;
-    /* Success tone (teal family, owner accent): dark teal text for light
-     * tints — white would fail contrast on 10% teal backgrounds. */
-    --success: 173 80% 40%;
-    --success-foreground: 175 77% 26%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 209 61% 16%;
-    --radius: 0.5rem;
+    --background: 214 56% 8%; /* the bench — #091320 */
+    --foreground: 210 33% 97%;
+    --card: 213 42% 12%; /* the plate — #121d2b */
+    --card-foreground: 210 33% 97%;
+    --panel: 213 48% 10%; /* sidebar/toolbars layer — #0d1826 */
+    --popover: 213 45% 12%;
+    --popover-foreground: 210 33% 97%;
+    --primary: 192 76% 52%; /* instrument light ≈ #28bce2 (brand #1CA6C8 family, brightened for dark) */
+    --primary-foreground: 214 56% 8%; /* navy ink on solid cyan */
+    --secondary: 213 32% 17%; /* raised tint ≈ #1d2939 */
+    --secondary-foreground: 210 30% 93%;
+    --muted: 213 32% 16%;
+    --muted-foreground: 214 15% 68%;
+    /* `accent` keeps the shadcn slot for links/highlights/active UI — same
+     * cyan family as primary, one step brighter so text sits well on cards.
+     * Judgment colors below are for data states only, never decoration. */
+    --accent: 192 78% 62%;
+    --accent-foreground: 214 56% 8%;
+    --destructive: 0 91% 71%; /* bright red — text on tints + solid fills */
+    --destructive-foreground: 214 56% 8%;
+    --warning: 43 96% 56%; /* bright amber — text on tints + solid fills */
+    --warning-foreground: 214 56% 8%;
+    --success: 158 65% 52%; /* bright jade */
+    --success-foreground: 214 56% 8%;
+    --border: 212 30% 20%; /* hairline */
+    --input: 212 28% 26%;
+    --ring: 192 76% 52%;
+    --radius: 0.375rem;
   }
 }
 
@@ -53,15 +58,78 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    /* Native controls (select dropdowns, scrollbars, date pickers) render
+     * dark with the page instead of blinding white popups. */
+    color-scheme: dark;
   }
 
   body {
     @apply bg-background text-foreground;
+    /* Subtle depth without ornament: the bench falls slightly darker toward
+     * the bottom of long pages. */
+    background-image: radial-gradient(120% 60% at 50% 0%, hsl(213 48% 11% / 0.9), transparent 60%);
+    background-repeat: no-repeat;
   }
 
-  /* Native <dialog> backdrop (confirm-dialog.tsx) — dim + blur behind the
-   * modal, matching the card surface above it. */
+  /* --- Browser surfaces the floor requires themed, not defaulted --------- */
+
+  ::selection {
+    background: hsl(192 76% 52% / 0.32);
+    color: hsl(210 33% 97%);
+  }
+
+  input,
+  textarea {
+    caret-color: hsl(192 76% 52%);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(212 28% 30%) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: hsl(212 28% 28%);
+    border-radius: 8px;
+    border: 2px solid hsl(214 56% 8%);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(212 28% 36%);
+  }
+
+  /* Native <dialog> backdrop (confirm-dialog.tsx / form-dialog.tsx) — the
+   * bench dims behind the plate. */
   dialog::backdrop {
-    background: hsl(209 61% 16% / 0.5);
+    background: hsl(214 56% 4% / 0.7);
+    backdrop-filter: blur(2px);
+  }
+
+  /* Keyboard focus lands on the instrument light everywhere by default. */
+  :focus-visible {
+    outline-color: hsl(192 76% 52%);
+  }
+
+  /* Tabular data reads as measurement: consistent numerals in every table
+   * and definition list. */
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* The signature scan-line sweep (landing dossier plate) — keyframes live in
+   * tailwind.config.ts (`animate-scanline`). One authored motion moment; it
+   * never runs for visitors who prefer reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-scanline {
+      animation: none;
+      opacity: 0;
+    }
   }
 }

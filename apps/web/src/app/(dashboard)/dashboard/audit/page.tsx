@@ -270,7 +270,7 @@ export default function AuditPage() {
                 <table className="w-full text-sm">
                   <caption className="sr-only">Audit events, newest first</caption>
                   <thead>
-                    <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr className="border-b bg-panel/70 text-left font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                       <th scope="col" className="px-4 py-3 font-medium">When</th>
                       <th scope="col" className="px-4 py-3 font-medium">Actor</th>
                       <th scope="col" className="px-4 py-3 font-medium">Action</th>
@@ -320,19 +320,19 @@ function AuditRow({ event }: { event: AuditEventOut }) {
     : null;
 
   return (
-    <tr className="border-b border-border/60 align-top transition-colors last:border-0 hover:bg-muted/30">
+    <tr className="border-b border-border/60 align-top transition-colors last:border-0 hover:bg-secondary/40">
       <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
         {formatDateTime(event.occurred_at)}
       </td>
       <td className="px-4 py-3">
-        <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground">
+        <span className="rounded-sm border border-border bg-secondary/80 px-1.5 py-0.5 text-xs font-medium text-secondary-foreground">
           {event.actor_type === "system" ? "System" : "User"}
         </span>
         <span className="mt-1 block font-mono text-xs text-muted-foreground" title={event.actor_user_id ?? undefined}>
           {shortId(event.actor_user_id)}
         </span>
       </td>
-      <td className="px-4 py-3 font-mono text-xs">{event.action}</td>
+      <td className="px-4 py-3 font-mono text-xs text-foreground/90">{event.action}</td>
       <td className="px-4 py-3">
         <span className="text-xs text-muted-foreground">{event.entity_type ?? "—"}</span>
         <span className="mt-0.5 block font-mono text-xs" title={event.entity_id ?? undefined}>
@@ -362,16 +362,20 @@ function AccessRestricted({ reason }: { reason: string }) {
   return (
     <div
       role="note"
-      className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-card px-6 py-14 text-center"
+      className="flex flex-col items-center justify-center rounded-lg border border-border/70 bg-card/50 px-6 py-16 text-center"
     >
       <span
         aria-hidden="true"
-        className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted"
+        className="relative mb-5 flex h-16 w-14 items-center justify-center"
       >
-        <ShieldAlert className="h-6 w-6 text-muted-foreground" />
+        <span className="absolute inset-0 rounded-sm border border-dashed border-border" />
+        <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-b-sm bg-primary/70" />
+        <span className="flex h-11 w-9 items-center justify-center rounded-[3px] border border-border bg-secondary/60 shadow-raise">
+          <ShieldAlert className="h-5 w-5 text-muted-foreground" />
+        </span>
       </span>
-      <p className="text-sm font-semibold text-foreground">Audit access is restricted</p>
-      <p className="mt-1.5 max-w-md text-sm text-muted-foreground">{reason}</p>
+      <p className="font-display text-lg font-semibold text-foreground">Audit access is restricted</p>
+      <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{reason}</p>
       <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
         <ScrollText className="h-3.5 w-3.5" aria-hidden="true" />
         The audit log itself is append-only and tamper-evident by design.

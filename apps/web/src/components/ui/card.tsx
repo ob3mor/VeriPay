@@ -2,12 +2,17 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-/** shadcn/ui-style card primitives. */
+/**
+ * shadcn/ui-style card primitives, finished as "plates" of the examiner's
+ * bench: hairline border, machined top edge (inset highlight) and a long soft
+ * shadow — depth with offset and blur, never a flat halo (shadow-plate lives
+ * in tailwind.config.ts).
+ */
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}
+      className={cn("rounded-lg border bg-card text-card-foreground shadow-plate", className)}
       {...props}
     />
   )

@@ -28,24 +28,24 @@ import { cn } from "@/lib/utils";
 type StatTone = "neutral" | "info" | "warning" | "danger";
 
 const STAT_ICON_TONES: Record<StatTone, string> = {
-  neutral: "bg-muted text-muted-foreground",
-  info: "bg-primary/10 text-primary",
-  warning: "bg-warning/15 text-warning-foreground",
-  danger: "bg-destructive/10 text-destructive",
+  neutral: "bg-secondary/80 text-muted-foreground",
+  info: "bg-primary/12 text-primary",
+  warning: "bg-warning/15 text-warning",
+  danger: "bg-destructive/15 text-destructive",
 };
 
 const METER_FILL_TONES: Record<StatTone, string> = {
-  neutral: "bg-slate-400",
+  neutral: "bg-slate-500",
   info: "bg-primary",
   warning: "bg-warning",
   danger: "bg-destructive",
 };
 
 const CHIP_TONES: Record<StatTone, string> = {
-  neutral: "border-border bg-muted text-foreground",
-  info: "border-primary/20 bg-primary/10 text-primary",
-  warning: "border-warning/40 bg-warning/15 text-warning-foreground",
-  danger: "border-destructive/30 bg-destructive/10 text-destructive",
+  neutral: "border-border bg-secondary/70 text-secondary-foreground",
+  info: "border-primary/30 bg-primary/12 text-primary",
+  warning: "border-warning/40 bg-warning/12 text-warning",
+  danger: "border-destructive/40 bg-destructive/12 text-destructive",
 };
 
 function formatCount(value: number): string {
@@ -115,7 +115,9 @@ export function OverviewStatCards({ stats }: { stats: DashboardStatsOut }) {
               </span>
               <span className="text-xs font-medium">{card.label}</span>
             </CardDescription>
-            <CardTitle className="mt-2 text-3xl tabular-nums">{formatCount(card.value)}</CardTitle>
+            <CardTitle className="mt-2 font-display text-[2rem] leading-none tracking-tight tabular-nums">
+              {formatCount(card.value)}
+            </CardTitle>
           </CardHeader>
           <CardFooter className="pb-4 pt-2">
             <span className="text-xs leading-relaxed text-muted-foreground">{card.caption}</span>
@@ -178,7 +180,7 @@ function MeterRow({
         aria-valuemax={total}
         aria-valuenow={value}
         aria-label={`${label}: ${formatCount(value)} of ${formatCount(total)} invoices`}
-        className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-muted"
+        className="mt-2 h-2 w-full overflow-hidden rounded-full bg-secondary/80"
       >
         <div className={cn("h-full rounded-full", METER_FILL_TONES[tone])} style={{ width: `${pct}%` }} />
       </div>

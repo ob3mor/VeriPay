@@ -110,7 +110,7 @@ export function ProcessingStatusCard({
           <div className="mt-4 space-y-3">
             <p className="text-sm font-medium text-destructive">Processing failed.</p>
             {extractionError && (
-              <p className="break-words rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 font-mono text-xs text-foreground/80">
+              <p className="break-words rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 font-mono text-xs text-foreground/80">
                 {extractionError}
               </p>
             )}

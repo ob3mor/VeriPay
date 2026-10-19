@@ -36,15 +36,15 @@ export function FormAlert({ error, fallbackTitle = "Something went wrong", class
     return (
       <div
         role="alert"
-        className={cn("rounded-md border border-warning/50 bg-warning/10 px-3 py-2.5 text-sm", className)}
+        className={cn("rounded-md border border-warning/40 bg-warning/12 px-3 py-2.5 text-sm", className)}
         {...props}
       >
-        <p className="flex items-center gap-2 font-medium text-warning-foreground">
+        <p className="flex items-center gap-2 font-medium text-warning">
           <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
           Too many attempts — please wait
         </p>
-        <p className="mt-1 leading-relaxed text-warning-foreground/90">{error.message}</p>
-        <p className="mt-1 text-xs leading-relaxed text-warning-foreground/70">
+        <p className="mt-1 leading-relaxed text-warning/90">{error.message}</p>
+        <p className="mt-1 text-xs leading-relaxed text-warning/70">
           The limit is in place for your protection and lifts on its own shortly. Retrying sooner
           will not go through and can extend the wait.
         </p>

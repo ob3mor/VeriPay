@@ -53,7 +53,7 @@ const SEVERITY_FILTERS = [
 const UNASSIGNED = "__unassigned__";
 
 const SELECT_CLASS =
-  "h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+  "h-10 w-full rounded-md border border-input bg-background/60 px-3 text-sm shadow-[inset_0_1px_2px_hsl(214_56%_4%/0.4)] transition-[border-color,box-shadow] focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-transparent";
 
 function shortId(id: string): string {
   return id.length > 8 ? `${id.slice(0, 8)}…` : id;
@@ -212,7 +212,7 @@ export default function CasesPage() {
             <table className="w-full text-sm">
               <caption className="sr-only">Investigation cases, newest first</caption>
               <thead>
-                <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b bg-panel/70 text-left font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   <th scope="col" className="px-4 py-3 font-medium">Case</th>
                   <th scope="col" className="px-4 py-3 font-medium">Severity</th>
                   <th scope="col" className="px-4 py-3 font-medium">Status</th>
@@ -224,7 +224,7 @@ export default function CasesPage() {
                 {filtered.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/30"
+                    className="border-b border-border/60 transition-colors last:border-0 hover:bg-secondary/40"
                   >
                     <td className="px-4 py-3">
                       <Link

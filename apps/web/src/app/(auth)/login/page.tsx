@@ -63,7 +63,7 @@ export default function LoginPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Welcome back</CardTitle>
+        <CardTitle className="font-display text-xl font-semibold">Welcome back</CardTitle>
         <CardDescription>Sign in to your VeriPay workspace.</CardDescription>
       </CardHeader>
 
@@ -109,7 +109,10 @@ export default function LoginPage() {
           </Button>
           <p className="text-sm text-muted-foreground">
             New to VeriPay?{" "}
-            <Link href="/register" className="font-medium text-foreground underline-offset-4 hover:underline">
+            <Link
+              href="/register"
+              className="font-medium text-primary underline-offset-4 hover:text-accent hover:underline"
+            >
               Create an account
             </Link>
           </p>

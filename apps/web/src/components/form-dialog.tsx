@@ -95,9 +95,9 @@ export function FormDialog({
       onCancel={handleCancel}
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
-      className="w-[min(34rem,calc(100vw-2rem))] rounded-lg border border-border bg-card p-6 text-card-foreground shadow-lg"
+      className="w-[min(34rem,calc(100vw-2rem))] rounded-lg border border-border bg-card p-6 text-card-foreground shadow-plate"
     >
-      <h2 id={titleId} className="text-lg font-semibold">
+      <h2 id={titleId} className="font-display text-lg font-semibold">
         {title}
       </h2>
       {description && (

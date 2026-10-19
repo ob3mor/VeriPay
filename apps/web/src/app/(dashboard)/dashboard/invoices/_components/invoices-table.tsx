@@ -91,9 +91,24 @@ function RiskCell({
     return <StatusBadge presentation={RISK_NOT_ASSESSED} hideDot />;
   }
   if (assessment.status === "failed") {
-    return <StatusBadge presentation={{ label: HONEST_OUTCOME_LABELS.processingFailed, tone: "danger" }} hideDot />;
+    return (
+      <StatusBadge
+        presentation={{ label: HONEST_OUTCOME_LABELS.processingFailed, tone: "danger" }}
+        hideDot
+        className="whitespace-normal leading-snug"
+      />
+    );
   }
-  return <StatusBadge presentation={assessmentRiskPresentation(assessment.risk_level)} hideDot />;
+  // The honest outcome labels ("No material discrepancies", "Manual review
+  // required") are long — in the table they may wrap to two lines so all
+  // eight columns fit the 1440px content width without horizontal scroll.
+  return (
+    <StatusBadge
+      presentation={assessmentRiskPresentation(assessment.risk_level)}
+      hideDot
+      className="whitespace-normal leading-snug"
+    />
+  );
 }
 
 const PROCESSING_BADGES: Record<ProcessingState, { label: string; tone: "muted" | "info" | "warning" | "danger" }> = {
@@ -137,15 +152,15 @@ export function InvoicesTable({ rows, onRetryAssessment }: InvoicesTableProps) {
     <div className="overflow-x-auto rounded-lg border bg-card">
       <table className="w-full min-w-[900px] text-sm">
         <thead>
-          <tr className="border-b bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            <th scope="col" className="px-4 py-3">Vendor</th>
-            <th scope="col" className="px-4 py-3">Number</th>
-            <th scope="col" className="px-4 py-3 text-right">Amount</th>
-            <th scope="col" className="px-4 py-3">Date</th>
-            <th scope="col" className="px-4 py-3">Risk category</th>
-            <th scope="col" className="px-4 py-3">Processing</th>
-            <th scope="col" className="px-4 py-3">Review status</th>
-            <th scope="col" className="px-4 py-3">Investigation</th>
+          <tr className="border-b bg-panel/70 text-left font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <th scope="col" className="px-3 py-3">Vendor</th>
+            <th scope="col" className="px-3 py-3">Number</th>
+            <th scope="col" className="px-3 py-3 text-right">Amount</th>
+            <th scope="col" className="px-3 py-3">Date</th>
+            <th scope="col" className="px-3 py-3">Risk category</th>
+            <th scope="col" className="px-3 py-3">Processing</th>
+            <th scope="col" className="px-3 py-3">Review status</th>
+            <th scope="col" className="px-3 py-3">Investigation</th>
           </tr>
         </thead>
         <tbody>
@@ -153,25 +168,25 @@ export function InvoicesTable({ rows, onRetryAssessment }: InvoicesTableProps) {
             const { invoice } = row;
             const assessment = row.assessment;
             return (
-              <tr key={invoice.id} className="border-b last:border-b-0 hover:bg-muted/30">
-                <td className="max-w-[220px] truncate px-4 py-3">
+              <tr key={invoice.id} className="border-b transition-colors last:border-b-0 hover:bg-secondary/40">
+                <td className="max-w-[140px] truncate px-3 py-3">
                   {invoice.vendor_id === null ? (
                     <span className="text-muted-foreground">Unresolved</span>
                   ) : (
                     (row.vendorName ?? <span className="text-muted-foreground">Unknown vendor</span>)
                   )}
                 </td>
-                <td className="px-4 py-3 font-medium text-foreground">{invoice.invoice_number}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                <td className="px-3 py-3 font-medium text-foreground">{invoice.invoice_number}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">
                   {formatAmount(invoice.total_amount, invoice.currency)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">
                   {formatDate(invoice.invoice_date)}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-3">
                   <RiskCell row={row} onRetryAssessment={onRetryAssessment} />
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-3">
                   {assessment === undefined ? (
                     row.assessmentFailed ? (
                       <AssessmentLoadFailedCell
@@ -182,13 +197,20 @@ export function InvoicesTable({ rows, onRetryAssessment }: InvoicesTableProps) {
                       <span className="text-xs text-muted-foreground">…</span>
                     )
                   ) : (
-                    <StatusBadge presentation={PROCESSING_BADGES[processingStateOf(assessment)]} hideDot />
+                    <StatusBadge
+                      presentation={PROCESSING_BADGES[processingStateOf(assessment)]}
+                      hideDot
+                      className="whitespace-normal leading-snug"
+                    />
                   )}
                 </td>
-                <td className="px-4 py-3">
-                  <StatusBadge presentation={invoiceStatusPresentation(invoice.status)} />
+                <td className="px-3 py-3">
+                  <StatusBadge
+                    presentation={invoiceStatusPresentation(invoice.status)}
+                    className="whitespace-normal leading-snug"
+                  />
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-3">
                   <InvestigationLink row={row} />
                 </td>
               </tr>
